@@ -145,6 +145,24 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 768px) {
+    .hero { padding: 28px 20px 20px; }
+    .hero h1 { font-size: 22px; }
+    .hero-sub { font-size: 12px; }
+    .tags { gap: 6px; }
+    .sidebar { display: none; }
+    .layout { display: block; }
+    .main { padding: 20px 16px; max-width: 100%; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .nfr-grid { grid-template-columns: 1fr; }
+    .est-grid { grid-template-columns: 1fr; }
+    div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    .api-header { flex-wrap: wrap; }
+    .api-desc { margin-left: 0 !important; width: 100%; margin-top: 4px; }
+    .api-path { word-break: break-all; }
+    th, td { padding: 6px 8px; }
+  }
 </style>
 </head>
 <body>
