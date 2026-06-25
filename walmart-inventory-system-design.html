@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Design: Real-Time Inventory Management</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #151820;
+    --surface2:  #1c2030;
+    --border:    #252a3a;
+    --accent:    #4f8ef7;
+    --accent2:   #7c5cfc;
+    --green:     #3dd68c;
+    --yellow:    #f5c542;
+    --red:       #f76b6b;
+    --muted:     #5a6480;
+    --text:      #e2e8f0;
+    --text-dim:  #8899bb;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ── Header ── */
+  .hero {
+    background: linear-gradient(135deg, #0d0f14 0%, #111628 60%, #0d1525 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 48px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(79,142,247,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .hero h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 10px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub {
+    color: var(--text-dim);
+    font-size: 13px;
+    max-width: 560px;
+  }
+  .tags { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+  .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+  .tag-blue  { border-color: rgba(79,142,247,.4);  color: var(--accent);  background: rgba(79,142,247,.08); }
+  .tag-green { border-color: rgba(61,214,140,.4);  color: var(--green);   background: rgba(61,214,140,.08); }
+  .tag-purple{ border-color: rgba(124,92,252,.4);  color: var(--accent2); background: rgba(124,92,252,.08); }
+
+  /* ── Layout ── */
+  .layout { display: flex; min-height: calc(100vh - 160px); }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sidebar-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0 20px;
+    margin-bottom: 8px;
+    margin-top: 16px;
+  }
+  .sidebar-label:first-child { margin-top: 0; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 20px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 13px;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(79,142,247,.06); }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .nav-item.active .nav-dot { background: var(--accent); }
+
+  /* ── Main content ── */
+  .main { flex: 1; padding: 32px 40px; max-width: 900px; }
+
+  /* ── Section ── */
+  .section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(79,142,247,.12);
+    border: 1px solid rgba(79,142,247,.25);
+    border-radius: 4px;
+    padding: 2px 8px;
+    flex-shrink: 0;
+  }
+  .section-title { font-size: 16px; font-weight: 600; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card p, .card li { color: var(--text-dim); font-size: 13px; }
+  .card ul { padding-left: 16px; }
+  .card li { margin-bottom: 3px; }
+
+  /* ── Feature grid ── */
+  .feature-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    border-top: 2px solid var(--accent);
+  }
+  .feature-card.f2 { border-top-color: var(--green); }
+  .feature-card.f3 { border-top-color: var(--accent2); }
+  .feature-num { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+  .feature-name { font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+  .feature-desc { font-size: 12px; color: var(--text-dim); }
+
+  /* ── NFR table ── */
+  .nfr-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .nfr-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .nfr-feature { font-family: var(--mono); font-size: 10px; color: var(--accent); margin-bottom: 4px; }
+  .nfr-title { font-weight: 600; font-size: 12px; margin-bottom: 6px; }
+  .nfr-req { font-size: 12px; color: var(--text-dim); }
+
+  /* ── Estimation ── */
+  .est-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .est-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .est-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; }
+  .est-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .est-row:last-child { border-bottom: none; }
+  .est-key { font-size: 12px; color: var(--text-dim); }
+  .est-val { font-family: var(--mono); font-size: 12px; color: var(--green); font-weight: 600; }
+
+  /* ── API ── */
+  .api-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .api-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .method {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    min-width: 48px;
+    text-align: center;
+  }
+  .method-get  { background: rgba(61,214,140,.15);  color: var(--green); }
+  .method-post { background: rgba(79,142,247,.15);  color: var(--accent); }
+  .method-put  { background: rgba(245,197,66,.15);  color: var(--yellow); }
+  .method-del  { background: rgba(247,107,107,.15); color: var(--red); }
+  .api-path { font-family: var(--mono); font-size: 12px; color: var(--text); }
+  .api-desc { font-size: 12px; color: var(--text-dim); margin-left: auto; }
+  .api-body { padding: 12px 16px; }
+  .api-body pre {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    line-height: 1.6;
+  }
+  .api-body pre .key   { color: #7eb8f7; }
+  .api-body pre .str   { color: #98d982; }
+  .api-body pre .num   { color: #f5c542; }
+  .api-body pre .type  { color: #c792ea; }
+
+  /* ── Architecture diagram ── */
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    font-family: var(--mono);
+    font-size: 12px;
+    overflow-x: auto;
+  }
+  .arch-row { display: flex; align-items: center; justify-content: center; gap: 0; margin: 4px 0; flex-wrap: wrap; }
+  .arch-box {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid;
+    text-align: center;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .box-blue   { border-color: rgba(79,142,247,.5);  background: rgba(79,142,247,.1);  color: #7eb8f7; }
+  .box-green  { border-color: rgba(61,214,140,.5);  background: rgba(61,214,140,.1);  color: var(--green); }
+  .box-purple { border-color: rgba(124,92,252,.5);  background: rgba(124,92,252,.1);  color: #a990ff; }
+  .box-yellow { border-color: rgba(245,197,66,.5);  background: rgba(245,197,66,.1);  color: var(--yellow); }
+  .box-red    { border-color: rgba(247,107,107,.5); background: rgba(247,107,107,.1); color: var(--red); }
+  .box-gray   { border-color: var(--border);        background: var(--surface2);       color: var(--text-dim); }
+  .arch-arrow { color: var(--muted); padding: 0 6px; font-size: 14px; }
+  .arch-layer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--border);
+    flex-wrap: wrap;
+  }
+  .arch-layer:last-child { border-bottom: none; }
+  .arch-layer-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  /* ── Data model ── */
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  th {
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    vertical-align: top;
+  }
+  td:first-child { font-family: var(--mono); color: var(--accent); font-size: 11px; }
+  td.type-col { color: var(--green); font-family: var(--mono); font-size: 11px; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  /* ── Tradeoffs ── */
+  .tradeoff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tradeoff-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .tradeoff-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .tradeoff-choice {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .tradeoff-body { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+  .pro { color: var(--green); }
+  .con { color: var(--red); }
+
+  /* ── Deep dive callouts ── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: rgba(79,142,247,.05);
+    border-radius: 0 6px 6px 0;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .callout.warn  { border-left-color: var(--yellow); background: rgba(245,197,66,.05); }
+  .callout.good  { border-left-color: var(--green);  background: rgba(61,214,140,.05); }
+  .callout strong { color: var(--text); }
+
+  /* ── Collapse toggle ── */
+  .collapsible { cursor: pointer; user-select: none; }
+  .collapsible .chevron { margin-left: auto; color: var(--muted); transition: transform 0.2s; }
+  .collapsible.open .chevron { transform: rotate(180deg); }
+  .collapse-body { display: none; padding-top: 12px; }
+  .collapse-body.open { display: block; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">System Design Interview</div>
+  <h1>Real-Time <span>Inventory Management</span> System</h1>
+  <div class="hero-sub">Walmart Global Tech · Senior/Staff Level · Using the 8-Step Framework</div>
+  <div class="tags">
+    <span class="tag tag-blue">Distributed Systems</span>
+    <span class="tag tag-green">Event-Driven</span>
+    <span class="tag tag-purple">High Consistency</span>
+    <span class="tag tag-blue">Kafka</span>
+    <span class="tag tag-green">Redis</span>
+    <span class="tag tag-purple">Sharding</span>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-label">Framework</div>
+    <div class="nav-item active" onclick="scrollTo('features')"><span class="nav-dot"></span>1. Features</div>
+    <div class="nav-item" onclick="scrollTo('nfr')"><span class="nav-dot"></span>2. NFRs</div>
+    <div class="nav-item" onclick="scrollTo('estimation')"><span class="nav-dot"></span>3. Estimation</div>
+    <div class="nav-item" onclick="scrollTo('entities')"><span class="nav-dot"></span>4. Core Entities</div>
+    <div class="nav-item" onclick="scrollTo('api')"><span class="nav-dot"></span>5. API Design</div>
+    <div class="nav-item" onclick="scrollTo('hld')"><span class="nav-dot"></span>6. High Level Design</div>
+    <div class="nav-item" onclick="scrollTo('datamodel')"><span class="nav-dot"></span>7. Data Model</div>
+    <div class="nav-item" onclick="scrollTo('tradeoffs')"><span class="nav-dot"></span>8. Tradeoffs & Deep Dive</div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- 1. FEATURES -->
+    <div class="section" id="features">
+      <div class="section-header">
+        <span class="section-num">01</span>
+        <span class="section-title">Feature Selection</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Don't just list features — present 5-6 candidates and collaboratively narrow to 3 with the interviewer. This signals product thinking and keeps them engaged.
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card f1">
+          <div class="feature-num">FEATURE 01</div>
+          <div class="feature-name">Real-Time Stock Tracking</div>
+          <div class="feature-desc">Track inventory levels across all stores and warehouses in near real-time. Every sale, return, or restock updates the count.</div>
+        </div>
+        <div class="feature-card f2">
+          <div class="feature-num">FEATURE 02</div>
+          <div class="feature-name">Inventory Reservation</div>
+          <div class="feature-desc">Reserve stock during checkout to prevent overselling. Reservations expire if payment doesn't complete within a TTL window.</div>
+        </div>
+        <div class="feature-card f3">
+          <div class="feature-num">FEATURE 03</div>
+          <div class="feature-name">Low Stock Alerting & Restocking</div>
+          <div class="feature-desc">Trigger alerts and auto-generate purchase orders when stock falls below configurable thresholds per SKU per location.</div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;">
+        <div style="font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size: 12px; color: var(--text-dim); line-height: 1.8;">
+          Supplier management &amp; vendor onboarding &nbsp;·&nbsp;
+          Demand forecasting &amp; ML-based replenishment &nbsp;·&nbsp;
+          Dynamic pricing engine &nbsp;·&nbsp;
+          Returns fraud detection &nbsp;·&nbsp;
+          Multi-currency / international tax handling
+        </div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 8px;"><strong style="color: var(--text-dim);">Why mention it:</strong> Shows you understand the broader problem space without letting it derail the interview scope.</div>
+      </div>
+    </div>
+
+    <!-- 2. NFRs -->
+    <div class="section" id="nfr">
+      <div class="section-header">
+        <span class="section-num">02</span>
+        <span class="section-title">Non-Functional Requirements</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Map NFRs to each feature. Generic NFRs (just listing "scalability, availability") is a junior signal.
+      </div>
+      <div class="nfr-grid">
+        <div class="nfr-card">
+          <div class="nfr-feature">Stock Tracking</div>
+          <div class="nfr-title">Eventual Consistency</div>
+          <div class="nfr-req">Read counts can lag by ~1–2s. Analytics dashboards don't need perfect freshness.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">Reservation</div>
+          <div class="nfr-title">Strong Consistency</div>
+          <div class="nfr-req">No overselling. Reservation must be atomic — use optimistic locking or Redis atomic ops.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">Alerting</div>
+          <div class="nfr-title">At-Least-Once Delivery</div>
+          <div class="nfr-req">Missing a low-stock alert is worse than a duplicate. Make consumers idempotent.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">System-Wide</div>
+          <div class="nfr-title">High Availability (99.99%)</div>
+          <div class="nfr-req">~52 min downtime/year. Multi-AZ deployments, no single points of failure.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">System-Wide</div>
+          <div class="nfr-title">Peak Load: Black Friday</div>
+          <div class="nfr-req">10x normal traffic. Auto-scaling, circuit breakers, and graceful degradation required.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">Stock Tracking</div>
+          <div class="nfr-title">Low Write Latency</div>
+          <div class="nfr-req">Stock updates must be persisted within 500ms of a sale event to prevent stale reads at checkout.</div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;">
+        <div style="font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size: 12px; color: var(--text-dim); line-height: 1.8;">
+          Monitoring &amp; alerting infrastructure &nbsp;·&nbsp;
+          GDPR / PII compliance &nbsp;·&nbsp;
+          Multi-region active-active replication &nbsp;·&nbsp;
+          Audit logging for regulatory requirements
+        </div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 8px;"><strong style="color: var(--text-dim);">Why mention it:</strong> Prevents scope creep mid-interview and signals awareness of production concerns.</div>
+      </div>
+    </div>
+
+    <!-- 3. ESTIMATION -->
+    <div class="section" id="estimation">
+      <div class="section-header">
+        <span class="section-num">03</span>
+        <span class="section-title">Back of Envelope Estimation</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Use derived numbers to justify your component choices. "150K read RPS is why I'm putting Redis in front of the DB."
+      </div>
+      <div class="est-grid">
+        <div class="est-card">
+          <div class="est-label">Assumptions</div>
+          <div class="est-row"><span class="est-key">Stores</span><span class="est-val">10,000</span></div>
+          <div class="est-row"><span class="est-key">SKUs per store</span><span class="est-val">100,000</span></div>
+          <div class="est-row"><span class="est-key">Transactions/store/day</span><span class="est-val">10,000</span></div>
+          <div class="est-row"><span class="est-key">Read:Write ratio</span><span class="est-val">10:1</span></div>
+          <div class="est-row"><span class="est-key">Avg event payload</span><span class="est-val">500 bytes</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Derived Numbers</div>
+          <div class="est-row"><span class="est-key">Write RPS</span><span class="est-val">~1,000 RPS</span></div>
+          <div class="est-row"><span class="est-key">Read RPS</span><span class="est-val">~10,000 RPS</span></div>
+          <div class="est-row"><span class="est-key">Write bandwidth</span><span class="est-val">~500 KB/s</span></div>
+          <div class="est-row"><span class="est-key">Events/day (Kafka)</span><span class="est-val">~86M events</span></div>
+          <div class="est-row"><span class="est-key">Storage/day</span><span class="est-val">~43 GB/day</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Black Friday Peak (10x)</div>
+          <div class="est-row"><span class="est-key">Write RPS</span><span class="est-val">~10,000 RPS</span></div>
+          <div class="est-row"><span class="est-key">Read RPS</span><span class="est-val">~100,000 RPS</span></div>
+          <div class="est-row"><span class="est-key">Kafka throughput</span><span class="est-val">~5 MB/s</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Conclusions</div>
+          <div class="est-row"><span class="est-key">DB servers needed</span><span class="est-val">~10 shards</span></div>
+          <div class="est-row"><span class="est-key">Cache needed</span><span class="est-val">Yes — 100K RPS</span></div>
+          <div class="est-row"><span class="est-key">Kafka partitions</span><span class="est-val">~10–50</span></div>
+          <div class="est-row"><span class="est-key">1yr storage</span><span class="est-val">~15 TB</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. CORE ENTITIES -->
+    <div class="section" id="entities">
+      <div class="section-header">
+        <span class="section-num">04</span>
+        <span class="section-title">Core Entities</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Define entities before API — they anchor your data model and make your API shapes obvious. Keep it to 3–5 entities. Don't list every field yet.
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="card">
+          <div class="card-title" style="color: var(--accent);">📦 SKU</div>
+          <p>A product variant (size, color, etc.). Has a global identity but exists at many locations with different stock levels. The unit of inventory tracking.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">sku_id · name · category · unit_of_measure</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--green);">🏪 Location</div>
+          <p>A store or warehouse. Each location has its own stock levels per SKU. Drives sharding strategy — most queries are location-scoped.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">location_id · type (STORE|WAREHOUSE) · region</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--accent2);">📊 InventoryRecord</div>
+          <p>The current stock state for a (SKU, Location) pair. This is the hot read/write entity — it must be strongly consistent for reservations and efficiently cached for reads.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">sku_id · location_id · available_qty · reserved_qty · version</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--yellow);">📋 InventoryEvent</div>
+          <p>An immutable log of every stock change (sale, return, restock, damage). Source of truth for audit and analytics. Drives the Kafka event stream.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">event_id · sku_id · location_id · delta · reason · occurred_at</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--red);">🔒 Reservation</div>
+          <p>A short-lived hold on stock during checkout. Has a TTL — auto-expires if payment doesn't complete. Prevents overselling without permanently reducing available_qty until payment confirms.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">reservation_id · sku_id · location_id · qty · order_id · expires_at</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--text-dim);">🔔 AlertThreshold</div>
+          <p>Configuration for when to fire a low-stock alert. Stored per (SKU, Location). Evaluated by the Alert Service on every inventory event.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">sku_id · location_id · threshold_qty · alert_channel</div>
+        </div>
+      </div>
+      <div class="callout" style="margin-top: 16px;">
+        <strong>Key relationship:</strong> InventoryRecord is the live state. InventoryEvent is the append-only history. Think of it like a bank account balance (record) vs transaction ledger (events).
+      </div>
+    </div>
+    <!-- 5. API -->
+    <div class="section" id="api">
+      <div class="section-header">
+        <span class="section-num">05</span>
+        <span class="section-title">API Design</span>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.08em;">Feature 1 — Stock Tracking</div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-get">GET</span>
+          <span class="api-path">/v1/inventory/{sku_id}?location_id={id}</span>
+          <span class="api-desc">Get stock level for a SKU at a location</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Response:</span>
+{
+  <span class="key">"sku_id"</span>: <span class="str">"SKU-12345"</span>,
+  <span class="key">"location_id"</span>: <span class="str">"STORE-001"</span>,
+  <span class="key">"available_qty"</span>: <span class="num">142</span>,
+  <span class="key">"reserved_qty"</span>: <span class="num">8</span>,
+  <span class="key">"last_updated"</span>: <span class="str">"2025-11-29T14:32:00Z"</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-post">POST</span>
+          <span class="api-path">/v1/inventory/adjustment</span>
+          <span class="api-desc">Apply a stock delta (sale, return, restock)</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Request:</span>
+{
+  <span class="key">"sku_id"</span>: <span class="str">"SKU-12345"</span>,
+  <span class="key">"location_id"</span>: <span class="str">"STORE-001"</span>,
+  <span class="key">"delta"</span>: <span class="num">-1</span>,           <span class="type">// negative = deduction</span>
+  <span class="key">"reason"</span>: <span class="str">"SALE"</span>,       <span class="type">// SALE | RETURN | RESTOCK | DAMAGE</span>
+  <span class="key">"idempotency_key"</span>: <span class="str">"txn-abc-123"</span>
+}</pre>
+        </div>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 20px 0 16px; text-transform: uppercase; letter-spacing: 0.08em;">Feature 2 — Reservation</div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-post">POST</span>
+          <span class="api-path">/v1/inventory/reserve</span>
+          <span class="api-desc">Reserve stock during checkout (TTL-based)</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Request:</span>
+{
+  <span class="key">"sku_id"</span>: <span class="str">"SKU-12345"</span>,
+  <span class="key">"location_id"</span>: <span class="str">"STORE-001"</span>,
+  <span class="key">"qty"</span>: <span class="num">2</span>,
+  <span class="key">"order_id"</span>: <span class="str">"ORD-789"</span>,
+  <span class="key">"ttl_seconds"</span>: <span class="num">300</span>
+}
+
+<span class="key">Response:</span>
+{
+  <span class="key">"reservation_id"</span>: <span class="str">"RES-456"</span>,
+  <span class="key">"expires_at"</span>: <span class="str">"2025-11-29T14:37:00Z"</span>,
+  <span class="key">"status"</span>: <span class="str">"CONFIRMED"</span>   <span class="type">// or FAILED (insufficient stock)</span>
+}</pre>
+        </div>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 20px 0 16px; text-transform: uppercase; letter-spacing: 0.08em;">Feature 3 — Alerting</div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-post">POST</span>
+          <span class="api-path">/v1/inventory/threshold</span>
+          <span class="api-desc">Set low-stock alert threshold for a SKU</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Request:</span>
+{
+  <span class="key">"sku_id"</span>: <span class="str">"SKU-12345"</span>,
+  <span class="key">"location_id"</span>: <span class="str">"STORE-001"</span>,
+  <span class="key">"threshold_qty"</span>: <span class="num">20</span>,
+  <span class="key">"alert_channel"</span>: <span class="str">"SNS_TOPIC_ARN"</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <strong>Idempotency key</strong> on stock adjustments is critical — a retry on a failed sale must not double-deduct inventory.
+      </div>
+    </div>
+
+    <!-- 6. HLD -->
+    <div class="section" id="hld">
+      <div class="section-header">
+        <span class="section-num">06</span>
+        <span class="section-title">High Level Design</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Build incrementally — one feature at a time. Start minimal, then merge overlapping components. Don't draw the full diagram upfront; show your reasoning as you go.
+      </div>
+
+      <!-- Feature 1 HLD -->
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">Feature 1 — Real-Time Stock Tracking</div>
+      <div class="arch-diagram" style="margin-bottom: 8px;">
+        <div class="arch-layer">
+          <div class="arch-layer-label">Clients</div>
+          <div class="arch-box box-gray">POS Terminal</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-gray">e-Commerce App</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-gray">Warehouse App</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Ingestion</div>
+          <div class="arch-box box-blue">API Gateway</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-blue">Inventory Service</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-yellow">Kafka (inventory-events)</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Storage</div>
+          <div class="arch-box box-green">Redis (hot stock cache)</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-blue">Postgres (sharded by location_id)</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-purple">ClickHouse (event log)</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">📦 Flow: Sale Event</div>
+        <p>POS fires POST /inventory/adjustment → Inventory Service atomically decrements Redis counter → publishes event to Kafka → Kafka consumer writes to Postgres (async) and ClickHouse (analytics). Reads are served from Redis; DB only on cache miss.</p>
+      </div>
+
+      <!-- Feature 2 HLD -->
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--green); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">Feature 2 — Inventory Reservation (adds to Feature 1)</div>
+      <div class="arch-diagram" style="margin-bottom: 8px;">
+        <div class="arch-layer">
+          <div class="arch-layer-label">New component added</div>
+          <div class="arch-box box-blue">Inventory Service</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-green">Reservation Service</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-green">Redis (SETNX + TTL)</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">On payment confirm / expire</div>
+          <div class="arch-box box-yellow">Kafka (reservation-events)</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-blue">Inventory Service</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-blue">Postgres (finalize deduction)</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">🔒 Flow: Checkout Reservation</div>
+        <p>POST /reserve → Reservation Service checks Redis stock atomically via SETNX → sets reservation key with TTL=300s → decrements available_qty in Redis immediately. On payment success: Kafka event finalizes in Postgres. On TTL expiry: background job restores Redis counter.</p>
+      </div>
+
+      <!-- Feature 3 HLD -->
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">Feature 3 — Low Stock Alerting (adds to Feature 1)</div>
+      <div class="arch-diagram" style="margin-bottom: 8px;">
+        <div class="arch-layer">
+          <div class="arch-layer-label">New component added</div>
+          <div class="arch-box box-yellow">Kafka (inventory-events)</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-purple">Alert Service (consumer)</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-yellow">SNS / SQS</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Downstream</div>
+          <div class="arch-box box-gray">Store Manager notification</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-red">Restocking / PO Service</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">🔔 Flow: Low Stock Alert</div>
+        <p>Alert Service consumes every inventory event from Kafka → compares post-event qty against AlertThreshold config from DB → if breached, publishes to SNS topic → fans out to store manager (push/email) and Restocking Service (auto PO generation).</p>
+      </div>
+
+      <!-- Merged full diagram -->
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">Merged Full Architecture</div>
+      <div class="arch-diagram">
+        <div class="arch-layer">
+          <div class="arch-layer-label">Clients</div>
+          <div class="arch-box box-gray">POS Terminal</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-gray">e-Commerce App</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-gray">Warehouse App</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-gray">Store Manager</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">API Gateway / Load Balancer</div>
+          <div class="arch-box box-blue">API Gateway (Rate Limiting, Auth)</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Services</div>
+          <div class="arch-box box-blue">Inventory Service</div>
+          <div class="arch-arrow">|</div>
+          <div class="arch-box box-green">Reservation Service</div>
+          <div class="arch-arrow">|</div>
+          <div class="arch-box box-purple">Alert Service</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Cache + Message Bus</div>
+          <div class="arch-box box-green">Redis (stock cache + reservation TTL)</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-yellow">Kafka (inventory events)</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Storage</div>
+          <div class="arch-box box-blue">Postgres (sharded by location_id)</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-purple">ClickHouse (event log / analytics)</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-green">S3 (cold archive)</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Downstream</div>
+          <div class="arch-box box-yellow">Notification Service (SNS/SQS)</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-red">Restocking / PO Service</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. DATA MODEL -->
+    <div class="section" id="datamodel">
+      <div class="section-header">
+        <span class="section-num">07</span>
+        <span class="section-title">Data Model</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Don't list every field. Focus on fields that drive design decisions — sharding keys, version columns, indexes.
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase;">inventory_ledger (Postgres — source of truth)</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>sku_id</td><td class="type-col">VARCHAR</td><td>Part of composite PK + shard key</td></tr>
+              <tr><td>location_id</td><td class="type-col">VARCHAR</td><td>Store or warehouse ID — shard key</td></tr>
+              <tr><td>available_qty</td><td class="type-col">INT</td><td>Must never go below 0 — DB constraint</td></tr>
+              <tr><td>reserved_qty</td><td class="type-col">INT</td><td>Soft-locked by active reservations</td></tr>
+              <tr><td>version</td><td class="type-col">BIGINT</td><td>Optimistic locking — increment on every write</td></tr>
+              <tr><td>updated_at</td><td class="type-col">TIMESTAMP</td><td>For cache invalidation and conflict detection</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase;">inventory_events (Kafka → ClickHouse)</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>event_id</td><td class="type-col">UUID</td><td>Idempotency deduplication key</td></tr>
+              <tr><td>sku_id</td><td class="type-col">VARCHAR</td><td>Kafka partition key</td></tr>
+              <tr><td>location_id</td><td class="type-col">VARCHAR</td><td></td></tr>
+              <tr><td>delta</td><td class="type-col">INT</td><td>+/- quantity change</td></tr>
+              <tr><td>reason</td><td class="type-col">ENUM</td><td>SALE | RETURN | RESTOCK | DAMAGE</td></tr>
+              <tr><td>occurred_at</td><td class="type-col">TIMESTAMP</td><td>Event time, not processing time</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase;">reservations (Redis — TTL-based)</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Key Pattern</th><th>Type</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>reserve:{sku}:{loc}:{order_id}</td><td class="type-col">STRING</td><td>Value = qty. TTL = 300s. Auto-expires.</td></tr>
+              <tr><td>stock:{sku}:{loc}</td><td class="type-col">INT</td><td>Cached available_qty. Written on DB sync.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. TRADEOFFS & DEEP DIVES -->
+    <div class="section" id="tradeoffs">
+      <div class="section-header">
+        <span class="section-num">08</span>
+        <span class="section-title">Tradeoffs & Deep Dives</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Each deep dive is triggered by an NFR. Lead with the bad solution, explain why it fails, then escalate to good and great. This shows systematic thinking — not just pattern matching.
+      </div>
+
+      <!-- Deep Dive 1 -->
+      <div style="margin-bottom: 32px;">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">NFR: Strong Consistency for Reservations</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 16px;">How do we prevent overselling under concurrent checkouts?</div>
+
+        <div style="background: var(--surface); border: 1px solid rgba(247,107,107,.3); border-left: 3px solid var(--red); border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--red); margin-bottom: 6px;">❌ BAD — DB-level SELECT then UPDATE</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Read stock qty, check if sufficient, then write deduction in two separate DB calls. Race condition: two concurrent checkouts both read qty=1 and both succeed, resulting in qty=-1.</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid rgba(245,197,66,.3); border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--yellow); margin-bottom: 6px;">⚠ GOOD — Optimistic Locking in Postgres</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Add a <code>version</code> column. UPDATE … WHERE version=N fails if another write happened concurrently. Retry on failure. Works but adds DB round-trips and retry logic under high contention (Black Friday).</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid rgba(61,214,140,.3); border-left: 3px solid var(--green); border-radius: 0 8px 8px 0; padding: 14px 16px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--green); margin-bottom: 6px;">✅ GREAT — Redis Atomic DECR with floor check</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Use a Lua script on Redis: atomically check available_qty &gt; 0 and decrement in a single operation. Sub-millisecond, no race conditions. Postgres is updated asynchronously via Kafka. Redis AOF persistence handles crash recovery.</div>
+        </div>
+      </div>
+
+      <!-- Deep Dive 2 -->
+      <div style="margin-bottom: 32px;">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">NFR: High Availability under Peak Load (Black Friday)</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 16px;">How do we handle 10x traffic without the DB becoming a bottleneck?</div>
+
+        <div style="background: var(--surface); border: 1px solid rgba(247,107,107,.3); border-left: 3px solid var(--red); border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--red); margin-bottom: 6px;">❌ BAD — Scale DB vertically</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Throw bigger hardware at Postgres. Hits physical limits quickly, expensive, single point of failure, and doesn't solve the cold cache problem on startup.</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid rgba(245,197,66,.3); border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--yellow); margin-bottom: 6px;">⚠ GOOD — Add Read Replicas + Shard Postgres</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Shard by location_id, add read replicas per shard. Reduces per-shard load. Still risks cold cache stampede and hot shards for high-volume stores (supercenters).</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid rgba(61,214,140,.3); border-left: 3px solid var(--green); border-radius: 0 8px 8px 0; padding: 14px 16px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--green); margin-bottom: 6px;">✅ GREAT — Pre-warm Redis + Circuit Breaker + TTL tightening</div>
+          <div style="font-size: 12px; color: var(--text-dim); line-height: 1.7;">
+            Three layers:<br>
+            1. <strong style="color:var(--text);">Pre-warm Redis</strong> the night before with all hot SKU counts — prevents cold cache stampede at midnight.<br>
+            2. <strong style="color:var(--text);">Circuit breaker</strong> on Postgres writes — if DB is overwhelmed, buffer in Kafka and drain after peak. Serve reads from Redis only.<br>
+            3. <strong style="color:var(--text);">TTL tightening</strong> — reduce reservation TTL from 300s → 60s to recycle abandoned carts faster and maximize available stock.
+          </div>
+        </div>
+      </div>
+
+      <!-- Deep Dive 3 -->
+      <div style="margin-bottom: 32px;">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">NFR: At-Least-Once Delivery for Alerts + Idempotency</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 16px;">How do we handle POS retries without double-deducting inventory?</div>
+
+        <div style="background: var(--surface); border: 1px solid rgba(247,107,107,.3); border-left: 3px solid var(--red); border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--red); margin-bottom: 6px;">❌ BAD — No idempotency, trust the network</div>
+          <div style="font-size: 12px; color: var(--text-dim);">POS terminals retry on timeout. Without deduplication, a retry fires a second stock deduction. Stock goes negative, customer order succeeds but item is unavailable.</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid rgba(245,197,66,.3); border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 10px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--yellow); margin-bottom: 6px;">⚠ GOOD — DB-level dedup table</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Store processed transaction_ids in a DB table with a UNIQUE constraint. On retry, INSERT fails, skip processing. Works but adds a DB round-trip on every write — bottleneck at scale.</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid rgba(61,214,140,.3); border-left: 3px solid var(--green); border-radius: 0 8px 8px 0; padding: 14px 16px;">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--green); margin-bottom: 6px;">✅ GREAT — Redis SET dedup with 24hr TTL</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Store idempotency_key in a Redis SET with 24hr TTL. SETNX check is sub-millisecond and doesn't touch Postgres. POS retries within 24hrs are safely deduplicated. Combine with Kafka exactly-once semantics (transactional producer) for the event pipeline.</div>
+        </div>
+      </div>
+
+      <!-- Walmart-specific callout -->
+      <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Walmart-Specific: Offline Store Behavior</div>
+      <div class="callout good">
+        <strong>Stores must operate during network outages.</strong> POS terminals buffer events locally (SQLite or embedded DB) and sync to central system on reconnect. The idempotency_key + event deduplication handles replay safely. This is a strong signal to mention — it shows awareness of Walmart's physical store constraints vs pure cloud-native thinking.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function scrollTo(id) {
+    document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+  }
+
+  // Highlight active nav on scroll
+  const sections = ['features','nfr','estimation','entities','api','hld','datamodel','tradeoffs'];
+  const navItems = document.querySelectorAll('.nav-item');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.getBoundingClientRect().top < 120) current = id;
+    });
+    navItems.forEach((item, i) => {
+      item.classList.toggle('active', sections[i] === current);
+    });
+  }, { passive: true });
+</script>
+</body>
+</html>

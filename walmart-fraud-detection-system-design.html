@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Design: Fraud Detection System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap');
+  :root {
+    --bg:#0d0f14;--surface:#151820;--surface2:#1c2030;--border:#252a3a;
+    --accent:#4f8ef7;--accent2:#7c5cfc;--green:#3dd68c;--yellow:#f5c542;
+    --red:#f76b6b;--muted:#5a6480;--text:#e2e8f0;--text-dim:#8899bb;
+    --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;}
+  .hero{background:linear-gradient(135deg,#0d0f14 0%,#111628 60%,#0d1525 100%);border-bottom:1px solid var(--border);padding:48px 48px 36px;position:relative;overflow:hidden;}
+  .hero::before{content:'';position:absolute;top:-80px;right:-80px;width:320px;height:320px;background:radial-gradient(circle,rgba(79,142,247,0.12) 0%,transparent 70%);pointer-events:none;}
+  .hero-eyebrow{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;}
+  .hero h1{font-size:28px;font-weight:700;letter-spacing:-0.02em;line-height:1.2;margin-bottom:10px;}
+  .hero h1 span{color:var(--accent);}
+  .hero-sub{color:var(--text-dim);font-size:13px;max-width:560px;}
+  .tags{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap;}
+  .tag{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid;}
+  .tag-blue{border-color:rgba(79,142,247,.4);color:var(--accent);background:rgba(79,142,247,.08);}
+  .tag-green{border-color:rgba(61,214,140,.4);color:var(--green);background:rgba(61,214,140,.08);}
+  .tag-purple{border-color:rgba(124,92,252,.4);color:var(--accent2);background:rgba(124,92,252,.08);}
+  .layout{display:flex;min-height:calc(100vh - 160px);}
+  .sidebar{width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:24px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .sidebar-label{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;padding:0 20px;margin-bottom:8px;margin-top:16px;}
+  .sidebar-label:first-child{margin-top:0;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:7px 20px;cursor:pointer;color:var(--text-dim);font-size:13px;transition:all 0.15s;border-left:2px solid transparent;}
+  .nav-item:hover{color:var(--text);background:var(--surface2);}
+  .nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(79,142,247,.06);}
+  .nav-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+  .nav-item.active .nav-dot{background:var(--accent);}
+  .main{flex:1;padding:32px 40px;max-width:900px;}
+  .section{margin-bottom:48px;scroll-margin-top:24px;}
+  .section-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+  .section-num{font-family:var(--mono);font-size:11px;color:var(--accent);background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.25);border-radius:4px;padding:2px 8px;flex-shrink:0;}
+  .section-title{font-size:16px;font-weight:600;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:12px;}
+  .card-title{font-weight:600;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+  .card p,.card li{color:var(--text-dim);font-size:13px;}
+  .card ul{padding-left:16px;}
+  .card li{margin-bottom:3px;}
+  .feature-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .feature-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;border-top:2px solid var(--accent);}
+  .feature-card.f2{border-top-color:var(--green);}
+  .feature-card.f3{border-top-color:var(--accent2);}
+  .feature-num{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;}
+  .feature-name{font-weight:600;font-size:13px;margin-bottom:8px;}
+  .feature-desc{font-size:12px;color:var(--text-dim);}
+  .nfr-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .nfr-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+  .nfr-feature{font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:4px;}
+  .nfr-title{font-weight:600;font-size:12px;margin-bottom:6px;}
+  .nfr-req{font-size:12px;color:var(--text-dim);}
+  .est-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .est-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;}
+  .est-label{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;}
+  .est-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);}
+  .est-row:last-child{border-bottom:none;}
+  .est-key{font-size:12px;color:var(--text-dim);}
+  .est-val{font-family:var(--mono);font-size:12px;color:var(--green);font-weight:600;}
+  .api-block{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;}
+  .api-header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .method{font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px;min-width:48px;text-align:center;}
+  .method-get{background:rgba(61,214,140,.15);color:var(--green);}
+  .method-post{background:rgba(79,142,247,.15);color:var(--accent);}
+  .method-put{background:rgba(245,197,66,.15);color:var(--yellow);}
+  .method-del{background:rgba(247,107,107,.15);color:var(--red);}
+  .api-path{font-family:var(--mono);font-size:11px;color:var(--text);word-break:break-all;}
+  .api-desc{font-size:12px;color:var(--text-dim);margin-left:auto;}
+  .api-body{padding:12px 16px;}
+  .api-body pre{font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:pre-wrap;line-height:1.6;}
+  .api-body pre .key{color:#7eb8f7;}
+  .api-body pre .str{color:#98d982;}
+  .api-body pre .num{color:#f5c542;}
+  .api-body pre .type{color:#c792ea;}
+  .arch-diagram{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;font-family:var(--mono);font-size:12px;overflow-x:auto;}
+  .arch-box{padding:8px 14px;border-radius:6px;border:1px solid;text-align:center;font-size:11px;white-space:nowrap;}
+  .box-blue{border-color:rgba(79,142,247,.5);background:rgba(79,142,247,.1);color:#7eb8f7;}
+  .box-green{border-color:rgba(61,214,140,.5);background:rgba(61,214,140,.1);color:var(--green);}
+  .box-purple{border-color:rgba(124,92,252,.5);background:rgba(124,92,252,.1);color:#a990ff;}
+  .box-yellow{border-color:rgba(245,197,66,.5);background:rgba(245,197,66,.1);color:var(--yellow);}
+  .box-red{border-color:rgba(247,107,107,.5);background:rgba(247,107,107,.1);color:var(--red);}
+  .box-gray{border-color:var(--border);background:var(--surface2);color:var(--text-dim);}
+  .arch-arrow{color:var(--muted);padding:0 6px;font-size:14px;}
+  .arch-layer{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 0;border-bottom:1px dashed var(--border);flex-wrap:wrap;}
+  .arch-layer:last-child{border-bottom:none;}
+  .arch-layer-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;width:100%;text-align:center;margin-bottom:8px;}
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{background:var(--surface2);color:var(--text-dim);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);}
+  td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--text-dim);vertical-align:top;}
+  td:first-child{font-family:var(--mono);color:var(--accent);font-size:11px;}
+  td.type-col{color:var(--green);font-family:var(--mono);font-size:11px;}
+  tr:hover td{background:rgba(255,255,255,.02);}
+  .callout{border-left:3px solid var(--accent);background:rgba(79,142,247,.05);border-radius:0 6px 6px 0;padding:12px 16px;margin:12px 0;font-size:12px;color:var(--text-dim);}
+  .callout.warn{border-left-color:var(--yellow);background:rgba(245,197,66,.05);}
+  .callout.good{border-left-color:var(--green);background:rgba(61,214,140,.05);}
+  .callout strong{color:var(--text);}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">System Design Interview</div>
+  <h1>Real-Time <span>Fraud Detection System</span></h1>
+  <div class="hero-sub">Walmart Global Tech · Senior/Staff Level · Using the 8-Step Framework</div>
+  <div class="tags">
+    <span class="tag tag-blue">Real-Time ML</span>
+    <span class="tag tag-green">Feature Store</span>
+    <span class="tag tag-purple">Rule Engine</span>
+    <span class="tag tag-blue">Gradient Boosting</span>
+    <span class="tag tag-green">Shadow Mode</span>
+    <span class="tag tag-purple">&lt;100ms Decision</span>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-label">Framework</div>
+    <div class="nav-item active" onclick="scrollTo('features')"><span class="nav-dot"></span>1. Features</div>
+    <div class="nav-item" onclick="scrollTo('nfr')"><span class="nav-dot"></span>2. NFRs</div>
+    <div class="nav-item" onclick="scrollTo('estimation')"><span class="nav-dot"></span>3. Estimation</div>
+    <div class="nav-item" onclick="scrollTo('entities')"><span class="nav-dot"></span>4. Core Entities</div>
+    <div class="nav-item" onclick="scrollTo('api')"><span class="nav-dot"></span>5. API Design</div>
+    <div class="nav-item" onclick="scrollTo('hld')"><span class="nav-dot"></span>6. High Level Design</div>
+    <div class="nav-item" onclick="scrollTo('datamodel')"><span class="nav-dot"></span>7. Data Model</div>
+    <div class="nav-item" onclick="scrollTo('tradeoffs')"><span class="nav-dot"></span>8. Tradeoffs &amp; Deep Dive</div>
+  </nav>
+
+  <main class="main">
+
+    <div class="section" id="features">
+      <div class="section-header"><span class="section-num">01</span><span class="section-title">Feature Selection</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Fraud detection has two completely different time horizons — synchronous (&lt;100ms, blocking checkout) and asynchronous (model training, batch analysis). Separate them immediately; mixing them is a common mistake.</div>
+      <div class="feature-grid">
+        <div class="feature-card f1">
+          <div class="feature-num">FEATURE 01</div>
+          <div class="feature-name">Real-Time Transaction Scoring</div>
+          <div class="feature-desc">Synchronous accept/reject decision on every transaction in &lt;100ms. Blocking the checkout path — must never add visible latency.</div>
+        </div>
+        <div class="feature-card f2">
+          <div class="feature-num">FEATURE 02</div>
+          <div class="feature-name">Rule Engine for Hard Blocks</div>
+          <div class="feature-desc">Deterministic velocity checks, stolen card blocklist lookups, and geo-anomaly detection. Runs before ML — short-circuits known bad actors in &lt;5ms.</div>
+        </div>
+        <div class="feature-card f3">
+          <div class="feature-num">FEATURE 03</div>
+          <div class="feature-name">Feedback Loop &amp; Model Retraining</div>
+          <div class="feature-desc">Disputed decisions and confirmed fraud feed labeled data back to retrain the ML model. Shadow mode deployment before production promotion.</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size:12px;color:var(--text-dim);line-height:1.8;">Account takeover detection &nbsp;·&nbsp; Coupon abuse system &nbsp;·&nbsp; Chargeback dispute automation &nbsp;·&nbsp; Human review queue UI &nbsp;·&nbsp; Biometric authentication</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;"><strong style="color:var(--text-dim);">Why mention it:</strong> Each is a separate domain. Naming them shows you understand the fraud ecosystem without getting derailed.</div>
+      </div>
+    </div>
+
+    <div class="section" id="nfr">
+      <div class="section-header"><span class="section-num">02</span><span class="section-title">Non-Functional Requirements</span></div>
+      <div class="callout"><strong>Interview tip:</strong> The core tension in fraud detection is latency vs accuracy. A more complex model catches more fraud but takes longer. Make this tradeoff explicit per feature.</div>
+      <div class="nfr-grid">
+        <div class="nfr-card"><div class="nfr-feature">Real-Time Scoring</div><div class="nfr-title">p99 &lt; 100ms End-to-End</div><div class="nfr-req">This is on the checkout critical path. Any latency over 100ms directly harms conversion. Feature store + in-process ML is mandatory.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Real-Time Scoring</div><div class="nfr-title">False Positive Rate &lt; 0.1%</div><div class="nfr-req">Blocking a legitimate customer is costly — they don't retry. At 5M txns/day, 0.1% FPR = 5,000 blocked legitimate customers/day.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Rule Engine</div><div class="nfr-title">&lt; 5ms Rule Evaluation</div><div class="nfr-req">Rules must be deterministic and hot-reloadable. New rules deployable without service restart (config-driven, not code-driven).</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Feedback Loop</div><div class="nfr-title">Model Retrain &lt; 24h</div><div class="nfr-req">From labeled feedback to new model in production (via shadow): &lt;24h. Fraudsters adapt daily — model must keep pace.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">System-Wide</div><div class="nfr-title">Full Explainability</div><div class="nfr-req">Every REJECT must log exactly which rules and features triggered it. Required for dispute resolution and regulatory audit.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">System-Wide</div><div class="nfr-title">99.99% Availability</div><div class="nfr-req">Fraud service down = checkout blocked or unprotected. Fail-open (approve all) is the safer degradation vs fail-closed (block all).</div></div>
+      </div>
+      <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size:12px;color:var(--text-dim);line-height:1.8;">Real-time chargeback prediction &nbsp;·&nbsp; Integration with Visa/MC fraud networks &nbsp;·&nbsp; GDPR right-to-erasure from feature store &nbsp;·&nbsp; Multi-model ensemble serving</div>
+      </div>
+    </div>
+
+    <div class="section" id="estimation">
+      <div class="section-header"><span class="section-num">03</span><span class="section-title">Back of Envelope Estimation</span></div>
+      <div class="callout"><strong>Interview tip:</strong> "50K TPS × 20 feature lookups = 1M feature reads/sec peak. That's why the feature store must be Redis, not Postgres." Numbers validate the in-process ML + Redis combo.</div>
+      <div class="est-grid">
+        <div class="est-card">
+          <div class="est-label">Assumptions</div>
+          <div class="est-row"><span class="est-key">Transactions/day (normal)</span><span class="est-val">5M</span></div>
+          <div class="est-row"><span class="est-key">Peak TPS (Black Friday)</span><span class="est-val">50,000</span></div>
+          <div class="est-row"><span class="est-key">Fraud rate</span><span class="est-val">~0.1%</span></div>
+          <div class="est-row"><span class="est-key">Features per scoring call</span><span class="est-val">20</span></div>
+          <div class="est-row"><span class="est-key">Avg decision payload</span><span class="est-val">500 bytes</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Derived Numbers</div>
+          <div class="est-row"><span class="est-key">Fraudulent txns/day</span><span class="est-val">~5,000</span></div>
+          <div class="est-row"><span class="est-key">Feature store reads/s (peak)</span><span class="est-val">~1M RPS</span></div>
+          <div class="est-row"><span class="est-key">Rule evaluations/s (peak)</span><span class="est-val">~2.5M/s</span></div>
+          <div class="est-row"><span class="est-key">Training data/day</span><span class="est-val">~2.5 GB labeled rows</span></div>
+          <div class="est-row"><span class="est-key">Decision log storage/day</span><span class="est-val">~2.5 GB</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Black Friday Peak</div>
+          <div class="est-row"><span class="est-key">Inference QPS</span><span class="est-val">50,000 TPS</span></div>
+          <div class="est-row"><span class="est-key">Feature store reads/s</span><span class="est-val">~1M RPS</span></div>
+          <div class="est-row"><span class="est-key">Rule evaluations/s</span><span class="est-val">~2.5M/s</span></div>
+          <div class="est-row"><span class="est-key">Decision log writes/s</span><span class="est-val">~50K/s</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Conclusions</div>
+          <div class="est-row"><span class="est-key">Feature store</span><span class="est-val">Redis (1M RPS)</span></div>
+          <div class="est-row"><span class="est-key">ML inference</span><span class="est-val">In-process (0 network)</span></div>
+          <div class="est-row"><span class="est-key">Rule engine</span><span class="est-val">In-memory hot-reload</span></div>
+          <div class="est-row"><span class="est-key">Training pipeline</span><span class="est-val">Spark (async, offline)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="entities">
+      <div class="section-header"><span class="section-num">04</span><span class="section-title">Core Entities</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Fraud detection has a clear split: online entities (Transaction, FraudDecision, FeatureVector) that must be fast, and offline entities (FeedbackEvent, ModelVersion) that can be slow. Name this split explicitly.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="card"><div class="card-title" style="color:var(--accent);">💳 Transaction</div><p>The event being scored. Carries identity signals (user, device, IP) and transaction context (amount, merchant, type).</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">transaction_id · type · amount · user_id · device_id · ip · merchant_id · occurred_at</div></div>
+        <div class="card"><div class="card-title" style="color:var(--green);">🎯 FraudDecision</div><p>The immutable output of every scoring call. Stores the feature snapshot and triggered rules for explainability. Never UPDATE this record.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">decision_id · transaction_id · score · action · triggered_rules[] · feature_snapshot · model_version · latency_ms</div></div>
+        <div class="card"><div class="card-title" style="color:var(--accent2);">📊 FeatureVector</div><p>Pre-computed risk signals per user/device. Kept fresh by streaming updates on every transaction. The most performance-critical entity.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">user_id · txn_velocity_1h · txn_velocity_24h · avg_amount · distinct_merchants · country_mismatch · is_new_device</div></div>
+        <div class="card"><div class="card-title" style="color:var(--yellow);">📋 FraudRule</div><p>A deterministic rule in the rule engine. Config-driven so new rules can be deployed without a code release. Evaluated before ML.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">rule_id · name · condition_dsl · action (REJECT|REVIEW) · severity · is_active · updated_at</div></div>
+        <div class="card"><div class="card-title" style="color:var(--red);">🔄 FeedbackEvent</div><p>A labeled ground-truth outcome. Customer dispute resolved → TRUE_POSITIVE or FALSE_POSITIVE. Feeds the training pipeline.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">feedback_id · decision_id · outcome (TP|FP|TN|FN) · source (DISPUTE|CHARGEBACK|MANUAL) · occurred_at</div></div>
+        <div class="card"><div class="card-title" style="color:var(--text-dim);">🤖 ModelVersion</div><p>A trained ML artifact with performance metrics. Can be in SHADOW or PRODUCTION state. Shadow runs in parallel without impacting decisions.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">model_id · version · algorithm · auc_roc · false_positive_rate · trained_on · is_shadow · promoted_at</div></div>
+      </div>
+      <div class="callout" style="margin-top:16px;"><strong>Key relationship:</strong> FraudDecision bridges Transaction (what happened) and FeedbackEvent (what was true). Like a court verdict that can be appealed — the Decision is immutable, but FeedbackEvent adds ground truth that improves future verdicts.</div>
+    </div>
+
+    <div class="section" id="api">
+      <div class="section-header"><span class="section-num">05</span><span class="section-title">API Design</span></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 1 — Real-Time Scoring</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-post">POST</span><span class="api-path">/v1/fraud/score</span><span class="api-desc">Synchronous &lt;100ms decision</span></div>
+        <div class="api-body"><pre><span class="key">Request:</span>
+{
+  <span class="key">"transaction_id"</span>: <span class="str">"TXN-abc123"</span>,
+  <span class="key">"type"</span>: <span class="str">"PAYMENT"</span>,
+  <span class="key">"amount_cents"</span>: <span class="num">9999</span>,
+  <span class="key">"user_id"</span>: <span class="str">"USR-456"</span>,
+  <span class="key">"device_fingerprint"</span>: <span class="str">"fp_xyz"</span>,
+  <span class="key">"ip"</span>: <span class="str">"203.0.113.5"</span>,
+  <span class="key">"idempotency_key"</span>: <span class="str">"TXN-abc123"</span>
+}
+<span class="key">Response:</span>
+{
+  <span class="key">"decision_id"</span>: <span class="str">"DEC-789"</span>,
+  <span class="key">"score"</span>: <span class="num">0.12</span>,          <span class="type">// 0.0 = safe, 1.0 = fraud</span>
+  <span class="key">"action"</span>: <span class="str">"APPROVE"</span>,     <span class="type">// APPROVE | REJECT | REVIEW</span>
+  <span class="key">"triggered_rules"</span>: [],
+  <span class="key">"latency_ms"</span>: <span class="num">47</span>
+}</pre></div>
+      </div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-get">GET</span><span class="api-path">/v1/fraud/decisions/{decision_id}</span><span class="api-desc">Full explanation with feature snapshot</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span>
+{ <span class="key">"action"</span>: <span class="str">"REJECT"</span>, <span class="key">"triggered_rules"</span>: [<span class="str">"VELOCITY_1H"</span>, <span class="str">"GEO_ANOMALY"</span>], <span class="key">"feature_snapshot"</span>: { <span class="key">"txn_velocity_1h"</span>: <span class="num">8</span>, <span class="key">"country_mismatch"</span>: <span class="num">true</span> } }</pre></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin:20px 0 16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 2 — Rule Management</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-post">POST</span><span class="api-path">/v1/fraud/rules</span><span class="api-desc">Create/update rule without deploy</span></div>
+        <div class="api-body"><pre><span class="key">Request:</span>
+{ <span class="key">"name"</span>: <span class="str">"VELOCITY_1H"</span>, <span class="key">"condition_dsl"</span>: <span class="str">"txn_velocity_1h &gt; 5"</span>, <span class="key">"action"</span>: <span class="str">"REJECT"</span>, <span class="key">"severity"</span>: <span class="str">"HIGH"</span> }</pre></div>
+      </div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-put">PUT</span><span class="api-path">/v1/fraud/rules/{rule_id}/toggle</span><span class="api-desc">Disable rule without restart</span></div>
+        <div class="api-body"><pre><span class="key">Request:</span> { <span class="key">"is_active"</span>: <span class="num">false</span> }  <span class="type">// hot-reload propagates within 5s</span></pre></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin:20px 0 16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 3 — Feedback &amp; Model Lifecycle</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-post">POST</span><span class="api-path">/v1/fraud/feedback</span><span class="api-desc">Submit labeled outcome</span></div>
+        <div class="api-body"><pre><span class="key">Request:</span>
+{ <span class="key">"decision_id"</span>: <span class="str">"DEC-789"</span>, <span class="key">"outcome"</span>: <span class="str">"FALSE_POSITIVE"</span>, <span class="key">"source"</span>: <span class="str">"CUSTOMER_DISPUTE"</span>, <span class="key">"idempotency_key"</span>: <span class="str">"dispute-case-001"</span> }</pre></div>
+      </div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-post">POST</span><span class="api-path">/v1/fraud/models/{model_id}/promote</span><span class="api-desc">Promote shadow → production (internal)</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span> { <span class="key">"previous_model"</span>: <span class="str">"v12"</span>, <span class="key">"promoted_model"</span>: <span class="str">"v13"</span>, <span class="key">"rollback_window_minutes"</span>: <span class="num">60</span> }</pre></div>
+      </div>
+      <div class="callout warn"><strong>Idempotency on scoring:</strong> Scoring the same transaction_id twice must return the same decision. A retry must not flip APPROVE to REJECT. Check transaction_id in decision cache before re-scoring.</div>
+    </div>
+
+    <div class="section" id="hld">
+      <div class="section-header"><span class="section-num">06</span><span class="section-title">High Level Design</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Start with the synchronous hot path (F1). Then add the rule engine as a fast pre-filter (F2). Finally show the async offline feedback loop (F3). These are three completely separate concerns.</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Feature 1 — Real-Time Transaction Scoring (&lt;100ms path)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">Caller</div><div class="arch-box box-blue">Checkout / POS / API</div><div class="arch-arrow">→ synchronous call →</div><div class="arch-box box-blue">Fraud Scoring Service</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Feature Fetch (&lt;5ms)</div><div class="arch-box box-blue">Fraud Scoring Svc</div><div class="arch-arrow">→</div><div class="arch-box box-red">Feature Store (Redis)</div><div class="arch-arrow">→ 20 signals in &lt;5ms</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">ML Inference (&lt;15ms)</div><div class="arch-box box-blue">Fraud Scoring Svc</div><div class="arch-arrow">→ in-process →</div><div class="arch-box box-purple">ONNX Gradient Boosting Model</div><div class="arch-arrow">→ score 0.0–1.0</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Decision + Async Log</div><div class="arch-box box-green">Decision: APPROVE / REJECT / REVIEW</div><div class="arch-arrow">→ async →</div><div class="arch-box box-yellow">Kafka: fraud.decisions</div></div>
+      </div>
+      <div class="card" style="margin-top:12px;"><div class="card-title">Flow: Scoring</div><p>Checkout calls POST /v1/fraud/score (blocking). Fraud Scoring Service fetches 20 pre-computed features from Redis in one HMGET (under 5ms). ML model runs in-process (zero network hop): ONNX runtime, gradient boosting, 20 features → score in ~10ms. Decision threshold: score &lt;0.3=APPROVE, 0.3–0.7=REVIEW, &gt;0.7=REJECT. Decision logged to Kafka async (non-blocking). Total: p99 ~50ms with headroom to 100ms.</p></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Feature 2 — Rule Engine (runs FIRST, before ML)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">Rule Check (before ML)</div><div class="arch-box box-green">Rule Engine (in-memory)</div><div class="arch-arrow">checks:</div><div class="arch-box box-red">Stolen Card Bloom Filter (Redis)</div><div class="arch-arrow">· Velocity counters · Geo check</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Short-Circuit Path</div><div class="arch-box box-red">Rule triggered → REJECT immediately</div><div class="arch-arrow">ML skipped → saves ~15ms per blocked transaction</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Rule Hot-Reload</div><div class="arch-box box-yellow">Rule Config Watcher</div><div class="arch-arrow">polls Postgres rule table every 5s → updates in-memory rule set atomically</div></div>
+      </div>
+      <div class="card" style="margin-top:12px;"><div class="card-title">Flow: Rule Engine</div><p>Before ML scoring: (1) Bloom filter check for stolen card list — O(1), &lt;1ms, false-positive rate 0.01%. (2) Velocity check: INCR+GET Redis counters for txn_velocity_1h, txn_velocity_24h. (3) Geo anomaly: IP geolocation vs card billing country. If any rule triggers → REJECT with rule_id logged, ML skipped entirely. Known fraud blocked at &lt;5ms.</p></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Feature 3 — Feedback Loop &amp; Model Retraining (async, offline)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">Feedback Ingestion</div><div class="arch-box box-green">Feedback API</div><div class="arch-arrow">→</div><div class="arch-box box-yellow">Kafka: fraud.feedback</div><div class="arch-arrow">→</div><div class="arch-box box-purple">Label Joiner</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Training Pipeline</div><div class="arch-box box-purple">Label Joiner joins: FeedbackEvent + FraudDecision + FeatureVector → labeled row</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Model Lifecycle</div><div class="arch-box box-gray">Spark Training Job (nightly)</div><div class="arch-arrow">→</div><div class="arch-box box-gray">Model Registry</div><div class="arch-arrow">→</div><div class="arch-box box-yellow">Shadow Deployment</div><div class="arch-arrow">→ gate → Production</div></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Merged Full Architecture</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">Synchronous Path (&lt;100ms)</div><div class="arch-box box-blue">Checkout</div><div class="arch-arrow">→</div><div class="arch-box box-blue">Fraud Scoring Svc</div><div class="arch-arrow">→</div><div class="arch-box box-green">Rule Engine + Redis Feature Store + ONNX Model</div><div class="arch-arrow">→ Decision</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Async Logging</div><div class="arch-box box-yellow">Kafka: fraud.decisions</div><div class="arch-arrow">→</div><div class="arch-box box-green">Decision Store (Postgres)</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Offline Training Loop</div><div class="arch-box box-green">Feedback API</div><div class="arch-arrow">→ Kafka →</div><div class="arch-box box-purple">Label Joiner → Spark → Model Registry → Shadow → Prod</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="datamodel">
+      <div class="section-header"><span class="section-num">07</span><span class="section-title">Data Model</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Three completely different storage systems for three different access patterns. Never conflate them.</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Redis — Feature Store (Hash, updated streaming)</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Key Pattern</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>features:{user_id}</td><td class="type-col">Hash</td><td>txn_velocity_1h, txn_velocity_24h, avg_amount, distinct_merchants | TTL: 24h rolling</td></tr>
+          <tr><td>features:{device_id}</td><td class="type-col">Hash</td><td>distinct_ips_24h, is_new_device, last_seen_country | TTL: 7d</td></tr>
+          <tr><td>stolen_cards</td><td class="type-col">Bloom Filter</td><td>False positive rate 0.01%, ~50M cards, ~75MB RAM. Updated hourly from threat feeds.</td></tr>
+          <tr><td>velocity:{user_id}:1h</td><td class="type-col">INCR counter</td><td>Atomic increment on every transaction. TTL: 1h rolling window via EXPIREAT.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin:20px 0 10px;">Postgres — fraud_decisions (append-only)</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>decision_id</td><td class="type-col">UUID</td><td>PRIMARY KEY</td></tr>
+          <tr><td>transaction_id</td><td class="type-col">UUID</td><td>UNIQUE — idempotency guarantee</td></tr>
+          <tr><td>score</td><td class="type-col">FLOAT</td><td>0.0–1.0 from ML model</td></tr>
+          <tr><td>action</td><td class="type-col">ENUM</td><td>APPROVE / REJECT / REVIEW</td></tr>
+          <tr><td>triggered_rules</td><td class="type-col">JSONB</td><td>Array of rule_ids — for explainability</td></tr>
+          <tr><td>feature_snapshot</td><td class="type-col">JSONB</td><td>Point-in-time feature values — stored at decision time for audit</td></tr>
+          <tr><td>model_version</td><td class="type-col">VARCHAR</td><td>Which model version made this decision — for A/B analysis</td></tr>
+          <tr><td>latency_ms</td><td class="type-col">INT</td><td>SLA monitoring</td></tr>
+          <tr><td>created_at</td><td class="type-col">TIMESTAMPTZ</td><td>Immutable</td></tr>
+        </tbody>
+      </table></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);text-transform:uppercase;letter-spacing:0.08em;margin:20px 0 10px;">Kafka — fraud.feedback (training input, retained 90 days)</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>decision_id</td><td class="type-col">UUID</td><td>Join key to fraud_decisions for feature_snapshot</td></tr>
+          <tr><td>outcome</td><td class="type-col">ENUM</td><td>TRUE_POSITIVE / FALSE_POSITIVE / TRUE_NEGATIVE / FALSE_NEGATIVE</td></tr>
+          <tr><td>source</td><td class="type-col">ENUM</td><td>CUSTOMER_DISPUTE / BANK_CHARGEBACK / MANUAL_REVIEW</td></tr>
+          <tr><td>occurred_at</td><td class="type-col">TIMESTAMPTZ</td><td>When the ground truth was established</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout warn" style="margin-top:16px;"><strong>Always store feature_snapshot at decision time.</strong> Features change — a user's velocity_1h at time of decision is different from what you'd compute 2 hours later. You need the exact features that drove the REJECT for dispute resolution and model evaluation.</div>
+    </div>
+
+    <div class="section" id="tradeoffs">
+      <div class="section-header"><span class="section-num">08</span><span class="section-title">Tradeoffs &amp; Deep Dives</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Fraud detection deep dives always circle back to the latency vs accuracy tradeoff. Make it explicit — every architectural choice is a point on that curve.</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin:24px 0 8px;">NFR: SYNCHRONOUS SCORING &lt; 100ms</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">How do you make an ML inference decision in under 100ms on the checkout critical path?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — Synchronous microservice calls for features + inference</div>
+        <p style="font-size:13px;color:var(--text-dim);">Checkout calls Feature Service (REST, 40ms) → then calls ML Inference Service (REST, 40ms) in serial. 80ms+ just in network overhead before business logic. Any service slowdown pushes past 100ms. Two points of failure on the checkout critical path.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — Parallel fan-out to feature service + ML service</div>
+        <p style="font-size:13px;color:var(--text-dim);">Fetch features and run ML inference in parallel goroutines/threads. Reduces to max(40ms, 40ms) = ~40ms. Better, but still 2 network calls. Feature service becomes a bottleneck at 1M RPS. ML service scaling independent from feature scaling.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — Redis feature store + in-process ONNX model</div>
+        <p style="font-size:13px;color:var(--text-dim);">Three-layer optimization: (1) Feature store in Redis co-located with scoring pods — single HMGET fetches all 20 features in &lt;5ms. (2) ML model loaded in-process as ONNX binary — zero network hop, gradient boosting on 20 features runs in ~10ms. (3) Rule engine (in-memory, ~1ms) runs first — known bad actors short-circuit before any feature fetch. Result: p99 ~50ms with headroom to spare. Only dependency: Redis — no ML service to scale separately.</p>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin:32px 0 8px;">NFR: FEATURE FRESHNESS FOR VELOCITY FRAUD</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">How do you detect a fraudster making 10 transactions in 5 minutes if features are precomputed?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — Nightly batch feature computation</div>
+        <p style="font-size:13px;color:var(--text-dim);">txn_velocity_1h computed from yesterday's data. A fraudster executing 10 rapid transactions is invisible until the next batch run. By then, $50K in fraud has cleared. Completely misses the defining signal for velocity fraud.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — Query transaction DB at scoring time</div>
+        <p style="font-size:13px;color:var(--text-dim);">SELECT COUNT(*) FROM transactions WHERE user_id=X AND occurred_at &gt; NOW()-1h at scoring time. Fresh data, but adds a DB query to every checkout call. At 50K TPS this is 50K DB queries/second. DB becomes the bottleneck. 20–50ms per query blows the 100ms budget.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — Dual-write streaming feature updates</div>
+        <p style="font-size:13px;color:var(--text-dim);">Every transaction triggers two async writes: (1) Online: Kafka consumer increments Redis counter INCR velocity:{user_id}:1h and sets EXPIREAT to current_epoch_hour+1. Atomic, &lt;1ms. (2) Offline: nightly Spark job computes heavier 30-day signals and writes to Redis with 24h TTL. Scoring reads online counters (fresh, &lt;1s lag) + offline signals (warm, &lt;24h lag) in a single HMGET. Velocity fraud caught within seconds of the first suspicious transaction.</p>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin:32px 0 8px;">NFR: MODEL MUST IMPROVE FROM FEEDBACK</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">How do you safely deploy an improved fraud model without risking a spike in false positives?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — Manual retraining, deploy to production directly</div>
+        <p style="font-size:13px;color:var(--text-dim);">Data scientist retrains model monthly, deploys directly to production. If new model has higher FPR due to data distribution shift, thousands of legitimate customers blocked before anyone notices. Rollback is manual and slow.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — A/B testing with traffic split</div>
+        <p style="font-size:13px;color:var(--text-dim);">Route 5% of traffic to new model, 95% to champion. Compare metrics. Problem: at 5% of 50K TPS = 2,500 TPS, real users get blocked by the challenger model during the test window. Acceptable for low-stakes features, not for checkout blocking decisions.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — Shadow mode with automated promotion gate</div>
+        <p style="font-size:13px;color:var(--text-mid);">New model runs in SHADOW: scores every transaction in parallel with production model, logs shadow_score to Kafka. Shadow decisions never affect the customer. After 48h shadow window: compare shadow AUC-ROC vs champion. Auto-promote gate: shadow AUC &gt; champion + 0.005 AND shadow FPR &lt; current FPR AND zero incidents in 48h → auto-promote via feature flag. Rollback gate: if production FPR spikes 2× after promotion → auto-revert to previous champion in &lt;60s. Zero customer impact during evaluation; fast safe rollback if anything goes wrong.</p>
+      </div>
+
+      <div class="callout good" style="margin-top:24px;">
+        <strong>Walmart at Scale:</strong> Walmart loses ~$3B annually to retail fraud including return fraud, payment fraud, and coupon abuse. Their fraud platform runs 500+ active rules updated daily by the fraud ops team, combined with a gradient boosting model trained on 5M+ labeled transactions weekly. On Black Friday, they pre-load the stolen card bloom filter with 48h of proactive threat intelligence from Visa/Mastercard networks, blocking known compromised cards before they attempt checkout. Their shadow deployment system allows weekly model refreshes with a 48-hour safety window before any customer impact.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function scrollTo(id){document.getElementById(id).scrollIntoView({behavior:'smooth',block:'start'});}
+  const sections=['features','nfr','estimation','entities','api','hld','datamodel','tradeoffs'];
+  const navItems=document.querySelectorAll('.nav-item');
+  window.addEventListener('scroll',()=>{
+    let current='';
+    sections.forEach(id=>{const el=document.getElementById(id);if(el&&el.getBoundingClientRect().top<120)current=id;});
+    navItems.forEach((item,i)=>{item.classList.toggle('active',sections[i]===current);});
+  },{passive:true});
+</script>
+</body>
+</html>

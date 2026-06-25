@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Design: Notification System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap');
+  :root {
+    --bg:#0d0f14;--surface:#151820;--surface2:#1c2030;--border:#252a3a;
+    --accent:#4f8ef7;--accent2:#7c5cfc;--green:#3dd68c;--yellow:#f5c542;
+    --red:#f76b6b;--muted:#5a6480;--text:#e2e8f0;--text-dim:#8899bb;
+    --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;}
+  .hero{background:linear-gradient(135deg,#0d0f14 0%,#111628 60%,#0d1525 100%);border-bottom:1px solid var(--border);padding:48px 48px 36px;position:relative;overflow:hidden;}
+  .hero::before{content:'';position:absolute;top:-80px;right:-80px;width:320px;height:320px;background:radial-gradient(circle,rgba(79,142,247,0.12) 0%,transparent 70%);pointer-events:none;}
+  .hero-eyebrow{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;}
+  .hero h1{font-size:28px;font-weight:700;letter-spacing:-0.02em;line-height:1.2;margin-bottom:10px;}
+  .hero h1 span{color:var(--accent);}
+  .hero-sub{color:var(--text-dim);font-size:13px;max-width:560px;}
+  .tags{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap;}
+  .tag{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid;}
+  .tag-blue{border-color:rgba(79,142,247,.4);color:var(--accent);background:rgba(79,142,247,.08);}
+  .tag-green{border-color:rgba(61,214,140,.4);color:var(--green);background:rgba(61,214,140,.08);}
+  .tag-purple{border-color:rgba(124,92,252,.4);color:var(--accent2);background:rgba(124,92,252,.08);}
+  .layout{display:flex;min-height:calc(100vh - 160px);}
+  .sidebar{width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:24px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .sidebar-label{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;padding:0 20px;margin-bottom:8px;margin-top:16px;}
+  .sidebar-label:first-child{margin-top:0;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:7px 20px;cursor:pointer;color:var(--text-dim);font-size:13px;transition:all 0.15s;border-left:2px solid transparent;}
+  .nav-item:hover{color:var(--text);background:var(--surface2);}
+  .nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(79,142,247,.06);}
+  .nav-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+  .nav-item.active .nav-dot{background:var(--accent);}
+  .main{flex:1;padding:32px 40px;max-width:900px;}
+  .section{margin-bottom:48px;scroll-margin-top:24px;}
+  .section-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+  .section-num{font-family:var(--mono);font-size:11px;color:var(--accent);background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.25);border-radius:4px;padding:2px 8px;flex-shrink:0;}
+  .section-title{font-size:16px;font-weight:600;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:12px;}
+  .card-title{font-weight:600;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+  .card p,.card li{color:var(--text-dim);font-size:13px;}
+  .card ul{padding-left:16px;}
+  .card li{margin-bottom:3px;}
+  .feature-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .feature-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;border-top:2px solid var(--accent);}
+  .feature-card.f2{border-top-color:var(--green);}
+  .feature-card.f3{border-top-color:var(--accent2);}
+  .feature-num{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;}
+  .feature-name{font-weight:600;font-size:13px;margin-bottom:8px;}
+  .feature-desc{font-size:12px;color:var(--text-dim);}
+  .nfr-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .nfr-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+  .nfr-feature{font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:4px;}
+  .nfr-title{font-weight:600;font-size:12px;margin-bottom:6px;}
+  .nfr-req{font-size:12px;color:var(--text-dim);}
+  .est-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .est-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;}
+  .est-label{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;}
+  .est-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);}
+  .est-row:last-child{border-bottom:none;}
+  .est-key{font-size:12px;color:var(--text-dim);}
+  .est-val{font-family:var(--mono);font-size:12px;color:var(--green);font-weight:600;}
+  .api-block{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;}
+  .api-header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .method{font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px;min-width:48px;text-align:center;}
+  .method-get{background:rgba(61,214,140,.15);color:var(--green);}
+  .method-post{background:rgba(79,142,247,.15);color:var(--accent);}
+  .method-put{background:rgba(245,197,66,.15);color:var(--yellow);}
+  .method-del{background:rgba(247,107,107,.15);color:var(--red);}
+  .api-path{font-family:var(--mono);font-size:11px;color:var(--text);word-break:break-all;}
+  .api-desc{font-size:12px;color:var(--text-dim);margin-left:auto;}
+  .api-body{padding:12px 16px;}
+  .api-body pre{font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:pre-wrap;line-height:1.6;}
+  .api-body pre .key{color:#7eb8f7;}
+  .api-body pre .str{color:#98d982;}
+  .api-body pre .num{color:#f5c542;}
+  .api-body pre .type{color:#c792ea;}
+  .arch-diagram{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;font-family:var(--mono);font-size:12px;overflow-x:auto;}
+  .arch-box{padding:8px 14px;border-radius:6px;border:1px solid;text-align:center;font-size:11px;white-space:nowrap;}
+  .box-blue{border-color:rgba(79,142,247,.5);background:rgba(79,142,247,.1);color:#7eb8f7;}
+  .box-green{border-color:rgba(61,214,140,.5);background:rgba(61,214,140,.1);color:var(--green);}
+  .box-purple{border-color:rgba(124,92,252,.5);background:rgba(124,92,252,.1);color:#a990ff;}
+  .box-yellow{border-color:rgba(245,197,66,.5);background:rgba(245,197,66,.1);color:var(--yellow);}
+  .box-red{border-color:rgba(247,107,107,.5);background:rgba(247,107,107,.1);color:var(--red);}
+  .box-gray{border-color:var(--border);background:var(--surface2);color:var(--text-dim);}
+  .arch-arrow{color:var(--muted);padding:0 6px;font-size:14px;}
+  .arch-layer{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 0;border-bottom:1px dashed var(--border);flex-wrap:wrap;}
+  .arch-layer:last-child{border-bottom:none;}
+  .arch-layer-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;width:100%;text-align:center;margin-bottom:8px;}
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{background:var(--surface2);color:var(--text-dim);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);}
+  td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--text-dim);vertical-align:top;}
+  td:first-child{font-family:var(--mono);color:var(--accent);font-size:11px;}
+  td.type-col{color:var(--green);font-family:var(--mono);font-size:11px;}
+  tr:hover td{background:rgba(255,255,255,.02);}
+  .callout{border-left:3px solid var(--accent);background:rgba(79,142,247,.05);border-radius:0 6px 6px 0;padding:12px 16px;margin:12px 0;font-size:12px;color:var(--text-dim);}
+  .callout.warn{border-left-color:var(--yellow);background:rgba(245,197,66,.05);}
+  .callout.good{border-left-color:var(--green);background:rgba(61,214,140,.05);}
+  .callout strong{color:var(--text);}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">System Design Interview</div>
+  <h1>Notification <span>System at Scale</span></h1>
+  <div class="hero-sub">Walmart Global Tech · Senior/Staff Level · Using the 8-Step Framework</div>
+  <div class="tags">
+    <span class="tag tag-blue">Kafka Fan-Out</span>
+    <span class="tag tag-green">Multi-Channel</span>
+    <span class="tag tag-purple">Rate Limiting</span>
+    <span class="tag tag-blue">Deduplication</span>
+    <span class="tag tag-green">SMS/Push/Email</span>
+    <span class="tag tag-purple">100M/day</span>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-label">Framework</div>
+    <div class="nav-item active" onclick="scrollTo('features')"><span class="nav-dot"></span>1. Features</div>
+    <div class="nav-item" onclick="scrollTo('nfr')"><span class="nav-dot"></span>2. NFRs</div>
+    <div class="nav-item" onclick="scrollTo('estimation')"><span class="nav-dot"></span>3. Estimation</div>
+    <div class="nav-item" onclick="scrollTo('entities')"><span class="nav-dot"></span>4. Core Entities</div>
+    <div class="nav-item" onclick="scrollTo('api')"><span class="nav-dot"></span>5. API Design</div>
+    <div class="nav-item" onclick="scrollTo('hld')"><span class="nav-dot"></span>6. High Level Design</div>
+    <div class="nav-item" onclick="scrollTo('datamodel')"><span class="nav-dot"></span>7. Data Model</div>
+    <div class="nav-item" onclick="scrollTo('tradeoffs')"><span class="nav-dot"></span>8. Tradeoffs &amp; Deep Dive</div>
+  </nav>
+
+  <main class="main">
+
+    <div class="section" id="features">
+      <div class="section-header"><span class="section-num">01</span><span class="section-title">Feature Selection</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Notification systems look simple but hide real complexity in deduplication, user preferences, and multi-channel fan-out. Anchor the design on: what happens when a service retries? The answer (idempotency) should drive everything.</div>
+      <div class="feature-grid">
+        <div class="feature-card f1">
+          <div class="feature-num">FEATURE 01</div>
+          <div class="feature-name">Multi-Channel Dispatch</div>
+          <div class="feature-desc">Fan-out a single notification request to SMS (Twilio), push notifications (APNS/FCM), and email (SES). One intent, multiple delivery channels.</div>
+        </div>
+        <div class="feature-card f2">
+          <div class="feature-num">FEATURE 02</div>
+          <div class="feature-name">User Preferences &amp; Rate Limiting</div>
+          <div class="feature-desc">Respect per-user opt-ins, quiet hours, and frequency caps per channel. Suppress or delay based on user settings — never spam.</div>
+        </div>
+        <div class="feature-card f3">
+          <div class="feature-num">FEATURE 03</div>
+          <div class="feature-name">Guaranteed Delivery with Retry</div>
+          <div class="feature-desc">Transactional notifications (order confirm) must be delivered. DLQ with exponential backoff for failed providers. Deduplication prevents duplicates on retry.</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size:12px;color:var(--text-dim);line-height:1.8;">Read receipts &amp; delivery confirmation UI &nbsp;·&nbsp; ML-based send-time optimization &nbsp;·&nbsp; A/B testing notification copy &nbsp;·&nbsp; Two-way SMS replies &nbsp;·&nbsp; Notification center in-app UI</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;"><strong style="color:var(--text-dim);">Why mention it:</strong> Each is a product feature on top of the delivery infrastructure. Naming them shows you understand the full product without letting them derail the architecture.</div>
+      </div>
+    </div>
+
+    <div class="section" id="nfr">
+      <div class="section-header"><span class="section-num">02</span><span class="section-title">Non-Functional Requirements</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Not all notifications are equal. Map NFRs to priority tiers: TRANSACTIONAL (order confirm) requires at-least-once delivery; PROMOTIONAL is best-effort, no retry. Mixing them is a common mistake.</div>
+      <div class="nfr-grid">
+        <div class="nfr-card"><div class="nfr-feature">Multi-Channel Dispatch</div><div class="nfr-title">Throughput: 2,800 TPS peak</div><div class="nfr-req">100M notifications/day, with 10M/hour flash sale bursts. Kafka buffers the burst. Per-channel workers scale independently.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Multi-Channel Dispatch</div><div class="nfr-title">Dispatch Initiation &lt; 1s</div><div class="nfr-req">Notification request accepted and queued within 1s. Actual delivery is async — do not block the calling service on provider response.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Preferences</div><div class="nfr-title">Opt-Out in Effect &lt; 60s</div><div class="nfr-req">User opts out → no notifications sent within 60s. Redis cache write-through. TCPA compliance requires immediate effect for SMS.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Preferences</div><div class="nfr-title">Preference Check &lt; 10ms</div><div class="nfr-req">Must not add visible latency to dispatch path. Redis cache (60s TTL, write-through) makes preference lookup sub-1ms.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Guaranteed Delivery</div><div class="nfr-title">At-Least-Once: Transactional</div><div class="nfr-req">Order confirmations must arrive. Max 4 retry attempts with exponential backoff. After 4 failures → DLQ + ops alert.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">System-Wide</div><div class="nfr-title">Zero Duplicates</div><div class="nfr-req">A retry must never result in duplicate notifications. Deduplication via Redis idempotency key per (request, channel). This is the hardest invariant to maintain.</div></div>
+      </div>
+      <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size:12px;color:var(--text-dim);line-height:1.8;">Delivery receipt webhooks from providers &nbsp;·&nbsp; Unsubscribe link click tracking &nbsp;·&nbsp; Notification analytics dashboard &nbsp;·&nbsp; GDPR right-to-erasure for notification history</div>
+      </div>
+    </div>
+
+    <div class="section" id="estimation">
+      <div class="section-header"><span class="section-num">03</span><span class="section-title">Back of Envelope Estimation</span></div>
+      <div class="callout"><strong>Interview tip:</strong> "100M/day = 1,150/s normal. But a flash sale can spike 10× in minutes to 2,800 TPS. That's why we need Kafka — it absorbs the burst without overwhelming Twilio's API rate limit."</div>
+      <div class="est-grid">
+        <div class="est-card">
+          <div class="est-label">Assumptions</div>
+          <div class="est-row"><span class="est-key">Notifications/day</span><span class="est-val">100M</span></div>
+          <div class="est-row"><span class="est-key">Channel split (push/email/SMS)</span><span class="est-val">40% / 40% / 20%</span></div>
+          <div class="est-row"><span class="est-key">Peak burst (flash sale)</span><span class="est-val">10M/hour</span></div>
+          <div class="est-row"><span class="est-key">Avg notification payload</span><span class="est-val">1 KB</span></div>
+          <div class="est-row"><span class="est-key">Transactional %</span><span class="est-val">~30% (order events)</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Derived Numbers</div>
+          <div class="est-row"><span class="est-key">Normal throughput</span><span class="est-val">~1,150/s</span></div>
+          <div class="est-row"><span class="est-key">Peak throughput</span><span class="est-val">~2,800/s</span></div>
+          <div class="est-row"><span class="est-key">Kafka throughput</span><span class="est-val">~1.15 MB/s normal</span></div>
+          <div class="est-row"><span class="est-key">Pref lookups/s</span><span class="est-val">~1,150 RPS (Redis)</span></div>
+          <div class="est-row"><span class="est-key">Delivery record storage/day</span><span class="est-val">~20 GB</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Black Friday Peak</div>
+          <div class="est-row"><span class="est-key">Peak TPS</span><span class="est-val">~2,800/s</span></div>
+          <div class="est-row"><span class="est-key">SMS (Twilio) calls/s</span><span class="est-val">~560/s</span></div>
+          <div class="est-row"><span class="est-key">Push (FCM/APNS) calls/s</span><span class="est-val">~1,120/s</span></div>
+          <div class="est-row"><span class="est-key">Email (SES) calls/s</span><span class="est-val">~1,120/s</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Conclusions</div>
+          <div class="est-row"><span class="est-key">Kafka needed</span><span class="est-val">Yes — burst absorption</span></div>
+          <div class="est-row"><span class="est-key">Redis for prefs + dedup</span><span class="est-val">Yes — sub-ms lookups</span></div>
+          <div class="est-row"><span class="est-key">Per-channel worker pools</span><span class="est-val">Scale independently</span></div>
+          <div class="est-row"><span class="est-key">Delivery DB (Postgres)</span><span class="est-val">~1 shard, append-only</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="entities">
+      <div class="section-header"><span class="section-num">04</span><span class="section-title">Core Entities</span></div>
+      <div class="callout"><strong>Interview tip:</strong> The key distinction: NotificationRequest is the intent (one per event); NotificationDelivery is the execution record (one per channel per request). This 1→N fan-out is the core data model.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="card"><div class="card-title" style="color:var(--accent);">📬 NotificationRequest</div><p>The incoming intent. One per event from any producer service. Carries the idempotency key that prevents duplicate dispatches.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">request_id · user_id · event_type · template_id · template_vars · idempotency_key · priority</div></div>
+        <div class="card"><div class="card-title" style="color:var(--green);">👤 UserPreference</div><p>Per-user channel settings. Opt-ins, push token, quiet hours, and frequency caps. Cached in Redis for sub-ms access on every dispatch.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">user_id · sms_opted_in · email_opted_in · push_token · quiet_start · quiet_end · timezone · freq_caps{}</div></div>
+        <div class="card"><div class="card-title" style="color:var(--accent2);">📋 NotificationDelivery</div><p>Delivery attempt record per channel. One NotificationRequest fans out to N NotificationDelivery rows (one per channel). Tracks retry state.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">delivery_id · request_id · channel · status · provider_msg_id · attempt_count · next_retry_at · created_at</div></div>
+        <div class="card"><div class="card-title" style="color:var(--yellow);">📝 NotificationTemplate</div><p>Reusable template with variable slots. Versioned. The Template Service renders personalized content before dispatch.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">template_id · event_type · channel · subject_template · body_template · cta_url · version</div></div>
+        <div class="card"><div class="card-title" style="color:var(--red);">❌ DeadLetterEvent</div><p>A notification that exhausted all retries. Stored for ops review and manual requeue. Triggers an alert to the on-call team.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">dl_id · delivery_id · last_error · final_attempt_at · channel · user_id · event_type</div></div>
+        <div class="card"><div class="card-title" style="color:var(--text-dim);">📊 RateLimitBucket</div><p>Redis counter for sliding window rate limiting. One key per (user, channel, time window). Atomic INCR prevents exceeding frequency caps.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">Key: rl:{user_id}:{channel}:{epoch_hour} | Value: count | TTL: 2h</div></div>
+      </div>
+      <div class="callout" style="margin-top:16px;"><strong>Key relationship:</strong> NotificationRequest is the intent; NotificationDelivery is the execution per channel. One request → 3 deliveries (SMS + push + email). Like one invoice generating 3 separate courier shipments — same content, different carriers.</div>
+    </div>
+
+    <div class="section" id="api">
+      <div class="section-header"><span class="section-num">05</span><span class="section-title">API Design</span></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 1 — Multi-Channel Dispatch</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-post">POST</span><span class="api-path">/v1/notifications</span><span class="api-desc">Send notification across channels</span></div>
+        <div class="api-body"><pre><span class="key">Request:</span>
+{
+  <span class="key">"user_id"</span>: <span class="str">"USR-456"</span>,
+  <span class="key">"event_type"</span>: <span class="str">"ORDER_CONFIRMED"</span>,
+  <span class="key">"template_id"</span>: <span class="str">"tmpl_order_confirm"</span>,
+  <span class="key">"template_vars"</span>: { <span class="key">"order_id"</span>: <span class="str">"ORD-789"</span>, <span class="key">"total"</span>: <span class="str">"$49.99"</span> },
+  <span class="key">"channels"</span>: [<span class="str">"push"</span>, <span class="str">"email"</span>],
+  <span class="key">"priority"</span>: <span class="str">"TRANSACTIONAL"</span>,
+  <span class="key">"idempotency_key"</span>: <span class="str">"order-789-confirm"</span>
+}
+<span class="key">Response:</span>
+{ <span class="key">"request_id"</span>: <span class="str">"REQ-abc"</span>, <span class="key">"deliveries"</span>: [{ <span class="key">"channel"</span>: <span class="str">"push"</span>, <span class="key">"status"</span>: <span class="str">"PENDING"</span> }, { <span class="key">"channel"</span>: <span class="str">"email"</span>, <span class="key">"status"</span>: <span class="str">"PENDING"</span> }] }</pre></div>
+      </div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-get">GET</span><span class="api-path">/v1/notifications/{request_id}</span><span class="api-desc">Delivery status across all channels</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span>
+{ <span class="key">"request_id"</span>: <span class="str">"REQ-abc"</span>, <span class="key">"deliveries"</span>: [{ <span class="key">"channel"</span>: <span class="str">"push"</span>, <span class="key">"status"</span>: <span class="str">"SENT"</span>, <span class="key">"attempt_count"</span>: <span class="num">1</span> }, { <span class="key">"channel"</span>: <span class="str">"email"</span>, <span class="key">"status"</span>: <span class="str">"DELIVERED"</span> }] }</pre></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin:20px 0 16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 2 — User Preferences</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-get">GET</span><span class="api-path">/v1/users/{user_id}/preferences</span><span class="api-desc">Get channel opt-ins and quiet hours</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span>
+{ <span class="key">"sms_opted_in"</span>: <span class="num">true</span>, <span class="key">"email_opted_in"</span>: <span class="num">true</span>, <span class="key">"push_token"</span>: <span class="str">"fcm_token_xyz"</span>, <span class="key">"quiet_hours"</span>: { <span class="key">"start"</span>: <span class="str">"22:00"</span>, <span class="key">"end"</span>: <span class="str">"08:00"</span> }, <span class="key">"timezone"</span>: <span class="str">"America/Chicago"</span> }</pre></div>
+      </div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-del">DELETE</span><span class="api-path">/v1/users/{user_id}/preferences/channels/sms</span><span class="api-desc">Opt-out immediately (TCPA)</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span> { <span class="key">"status"</span>: <span class="str">"OPT_OUT_CONFIRMED"</span>, <span class="key">"effective_in_seconds"</span>: <span class="num">60</span> }</pre></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin:20px 0 16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 3 — DLQ Management (Ops)</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-get">GET</span><span class="api-path">/v1/notifications/dlq</span><span class="api-desc">List permanently failed deliveries</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span> { <span class="key">"items"</span>: [{ <span class="key">"dl_id"</span>: <span class="str">"DL-001"</span>, <span class="key">"channel"</span>: <span class="str">"SMS"</span>, <span class="key">"last_error"</span>: <span class="str">"Twilio 429: Rate limit"</span>, <span class="key">"event_type"</span>: <span class="str">"ORDER_CONFIRMED"</span> }] }</pre></div>
+      </div>
+      <div class="callout warn"><strong>Idempotency is the hardest invariant:</strong> Every POST /v1/notifications requires an <code>idempotency_key</code>. If a checkout service retries on timeout with the same key, the Notification Service must return the original request_id without re-dispatching. One order confirm → one notification, no matter how many retries.</div>
+    </div>
+
+    <div class="section" id="hld">
+      <div class="section-header"><span class="section-num">06</span><span class="section-title">High Level Design</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Build the fan-out core first (F1). Then add the preference layer as a filter before dispatch (F2). Then add retry + DLQ as the failure handling layer (F3). Each layer is independent.</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Feature 1 — Multi-Channel Fan-Out</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">Event Producers</div><div class="arch-box box-blue">Order Svc</div><div class="arch-arrow">·</div><div class="arch-box box-blue">Inventory Svc</div><div class="arch-arrow">·</div><div class="arch-box box-blue">Price Svc</div><div class="arch-arrow">→ POST /v1/notifications →</div><div class="arch-box box-blue">Notification API</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Kafka Buffer</div><div class="arch-box box-blue">Notification API</div><div class="arch-arrow">→</div><div class="arch-box box-yellow">Kafka: notifications.requests (partitioned by user_id)</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Dispatcher</div><div class="arch-box box-green">Dispatcher Consumer</div><div class="arch-arrow">→ render template → fan-out to per-channel workers:</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Channel Workers</div><div class="arch-box box-green">SMS Worker → Twilio</div><div class="arch-arrow">·</div><div class="arch-box box-purple">Push Worker → APNS/FCM</div><div class="arch-arrow">·</div><div class="arch-box box-blue">Email Worker → SES</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Delivery Tracking</div><div class="arch-box box-gray">All workers → write delivery status → Postgres: notification_deliveries</div></div>
+      </div>
+      <div class="card" style="margin-top:12px;"><div class="card-title">Flow: Dispatch</div><p>Producer POSTs notification request → API validates + writes to Kafka (partitioned by user_id for ordering). Dispatcher Consumer reads from Kafka → calls Template Service to render personalized content → fans out to per-channel worker pools. Each worker calls the provider API and writes SENT/FAILED to the delivery table. Kafka absorbs burst spikes — producer never waits on provider API response.</p></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Feature 2 — Preferences &amp; Rate Limiting (adds to F1, runs before dispatch)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">New: Preference Gate</div><div class="arch-box box-green">Dispatcher</div><div class="arch-arrow">checks:</div><div class="arch-box box-red">Redis: prefs:{user_id}</div><div class="arch-arrow">→ channel opted in?</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">New: Quiet Hours Check</div><div class="arch-box box-green">Is now within quiet hours?</div><div class="arch-arrow">→ TRANSACTIONAL: delay to quiet_end via Kafka timestamp · PROMOTIONAL: drop</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">New: Rate Limit Check</div><div class="arch-box box-red">INCR rl:{user_id}:{channel}:{hour}</div><div class="arch-arrow">→ over cap? SKIP · under cap? dispatch</div></div>
+      </div>
+      <div class="card" style="margin-top:12px;"><div class="card-title">Flow: Preference Gate</div><p>Before dispatching each channel: (1) Check Redis prefs:{user_id} for channel opt-in (sub-1ms HGET). (2) Convert quiet_start/end to UTC, check current time. If quiet: transactional notifications get delayed via Kafka message with future timestamp; promotional notifications are dropped entirely. (3) INCR rate limit counter — if over cap for this hour, skip. Preference cache TTL: 60s (write-through on opt-out for TCPA compliance).</p></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Feature 3 — Retry, Dedup &amp; DLQ (adds to F1)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">New: Dedup Check (before every dispatch)</div><div class="arch-box box-red">Redis: dedup:{idempotency_key}:{channel}</div><div class="arch-arrow">→ hit: skip (already sent) · miss: proceed + SET key</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">New: Retry with Backoff</div><div class="arch-box box-purple">Provider fails → attempt 2 (+30s) → attempt 3 (+5min) → attempt 4 (+30min)</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">New: DLQ Path</div><div class="arch-box box-red">4 failures →</div><div class="arch-arrow">→</div><div class="arch-box box-yellow">Kafka: notifications.dlq</div><div class="arch-arrow">→</div><div class="arch-box box-red">Postgres: dead_letter_events + ops alert</div></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Merged Full Architecture</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">Producers</div><div class="arch-box box-blue">Order / Inventory / Price Svcs</div><div class="arch-arrow">→</div><div class="arch-box box-blue">Notification API</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Kafka Buffer</div><div class="arch-box box-yellow">Kafka: notifications.requests</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Dispatcher (pref + dedup + rate limit)</div><div class="arch-box box-green">Dispatcher Consumer</div><div class="arch-arrow">→</div><div class="arch-box box-red">Redis (prefs + dedup + rate limit)</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Channel Workers + Retry</div><div class="arch-box box-green">SMS</div><div class="arch-arrow">·</div><div class="arch-box box-purple">Push</div><div class="arch-arrow">·</div><div class="arch-box box-blue">Email</div><div class="arch-arrow">→ providers + retry → DLQ</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Persistence</div><div class="arch-box box-gray">Postgres: deliveries</div><div class="arch-arrow">·</div><div class="arch-box box-red">Postgres: dead_letter_events</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="datamodel">
+      <div class="section-header"><span class="section-num">07</span><span class="section-title">Data Model</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Four distinct storage concerns. Redis handles the latency-sensitive operations (preferences, dedup, rate limiting). Postgres handles the durable delivery record.</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Postgres — notification_deliveries</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>delivery_id</td><td class="type-col">UUID</td><td>PRIMARY KEY</td></tr>
+          <tr><td>request_id</td><td class="type-col">UUID</td><td>FK to notification_requests, indexed</td></tr>
+          <tr><td>channel</td><td class="type-col">ENUM</td><td>SMS / PUSH / EMAIL</td></tr>
+          <tr><td>user_id</td><td class="type-col">UUID</td><td>For opt-out queries: find in-flight deliveries to cancel</td></tr>
+          <tr><td>status</td><td class="type-col">ENUM</td><td>PENDING / SENT / DELIVERED / FAILED / SKIPPED</td></tr>
+          <tr><td>provider_msg_id</td><td class="type-col">VARCHAR</td><td>External ID for delivery receipt webhook matching</td></tr>
+          <tr><td>attempt_count</td><td class="type-col">INT</td><td>Max 4 before DLQ</td></tr>
+          <tr><td>next_retry_at</td><td class="type-col">TIMESTAMPTZ</td><td>NULL if terminal status (SENT/SKIPPED/FAILED after max attempts)</td></tr>
+          <tr><td>created_at</td><td class="type-col">TIMESTAMPTZ</td><td>Immutable</td></tr>
+        </tbody>
+      </table></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin:20px 0 10px;">Redis — Three separate concerns</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Key Pattern</th><th>Type</th><th>Purpose &amp; TTL</th></tr></thead>
+        <tbody>
+          <tr><td>prefs:{user_id}</td><td class="type-col">Hash</td><td>User preferences cache. Fields: sms_opted_in, push_token, quiet_start, quiet_end, tz. TTL: 60s write-through.</td></tr>
+          <tr><td>dedup:{idem_key}:{channel}</td><td class="type-col">String</td><td>Deduplication cache. Value: delivery_id. TTL: 24h. SET NX to atomically check-and-set.</td></tr>
+          <tr><td>rl:{user_id}:{channel}:{epoch_hr}</td><td class="type-col">String (INCR)</td><td>Rate limit sliding window counter. TTL: 2h. Atomic INCR — no race conditions.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout warn" style="margin-top:16px;"><strong>Rate limiting in Redis with INCR is O(1) and atomic.</strong> Never implement rate limiting in your application DB — at 1,150 notifications/sec that's 1,150 read-then-write transactions per second on your delivery DB. Redis handles this in microseconds with zero contention.</div>
+    </div>
+
+    <div class="section" id="tradeoffs">
+      <div class="section-header"><span class="section-num">08</span><span class="section-title">Tradeoffs &amp; Deep Dives</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Use the BAD → GOOD → GREAT pattern. For notifications, the three deepest problems are: deduplication (hardest to get right), quiet hours (surprising complexity), and provider outages (multi-provider failover).</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin:24px 0 8px;">NFR: ZERO DUPLICATE NOTIFICATIONS</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">How do you prevent sending 3 order confirmations when the checkout service retries on timeout?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — No idempotency</div>
+        <p style="font-size:13px;color:var(--text-dim);">Checkout service times out → retries POST /v1/notifications 3 times → user gets 3 order confirmation SMS. Customer calls support. Story goes viral on Twitter. On Black Friday this becomes a scale incident — millions of duplicates. Regulators flag TCPA violations for the SMS duplicates.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — DB unique constraint on (request_id, channel)</div>
+        <p style="font-size:13px;color:var(--text-dim);">Add UNIQUE(request_id, channel) to notification_deliveries. Duplicate INSERT throws constraint violation → return original delivery_id. Works but: DB write on every dispatch attempt at 1,150/s adds lock contention; doesn't cleanly return the original response body; slow under high retry load during peak.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — Two-layer deduplication: Redis fast path + DB safety net</div>
+        <p style="font-size:13px;color:var(--text-dim);">Layer 1: Before dispatching each channel, SET NX dedup:{idem_key}:{channel} = delivery_id EX 86400. NX = only set if not exists. If key already set → skip dispatch (already sent), return original delivery_id. O(1), &lt;1ms, atomic. Layer 2: DB UNIQUE constraint as safety net if Redis is cold after restart. Redis is the fast path (catches 99.9% of duplicates in microseconds). DB constraint catches the rare Redis miss. Net result: zero duplicate notifications delivered to users, &lt;1ms overhead per dispatch attempt.</p>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin:32px 0 8px;">NFR: TRANSACTIONAL DELIVERY DURING QUIET HOURS</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">A user has quiet hours 11pm–8am and places an order at midnight. How do they still get their order confirmation?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — Drop the notification silently</div>
+        <p style="font-size:13px;color:var(--text-dim);">User places order at midnight, has quiet hours set for SMS. Notification service drops the order confirmation. User wakes up at 8am with no confirmation, thinks order failed, calls support or reorders. TRANSACTIONAL notifications should never be silently dropped.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — Cron job scans for suppressed notifications</div>
+        <p style="font-size:13px;color:var(--text-dim);">Store suppressed notifications with a send_after timestamp. Cron job runs every 5 minutes, queries for rows where send_after &lt; NOW() and status=SUPPRESSED. Works but: polling DB at 1,150 notifications/s scale is expensive; 5-minute resolution means messages send up to 5 min late; cron becomes a bottleneck at scale.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — Delayed Kafka messages for transactional, drop for promotional</div>
+        <p style="font-size:13px;color:var(--text-dim);">When dispatcher detects quiet hours: if TRANSACTIONAL → re-publish to Kafka with message timestamp = quiet_end_time_utc. Kafka holds the message until that timestamp and delivers it to the consumer at the right time. No polling, no DB scan, no application state. If PROMOTIONAL → drop entirely (no re-delivery — user opted for quiet hours, promotional content has a freshness TTL). Transactional messages guaranteed to arrive at the first minute after quiet hours end. At-exactly-one-delivery-window semantics.</p>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin:32px 0 8px;">NFR: DELIVERY SLA DURING PROVIDER OUTAGE</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">Twilio goes down for 20 minutes during Black Friday. How do transactional SMS notifications still get delivered?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — Single SMS provider (Twilio only)</div>
+        <p style="font-size:13px;color:var(--text-dim);">Twilio outage = zero SMS delivery for 20 minutes. 20 min × 560 SMS/s = 672,000 undelivered order confirmations. All go to DLQ. Manual retry after outage resolves — delayed delivery to users. SLA breach.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — Retry against same provider with exponential backoff</div>
+        <p style="font-size:13px;color:var(--text-dim);">On Twilio failure: retry at +30s, +5min, +30min. During a 20-minute outage, all retries also fail. After 4 attempts → DLQ. User gets no SMS. Backoff helps with transient errors but not sustained outages. The retries also exhaust Twilio's rate limit when it comes back online (retry storm).</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — Multi-provider circuit breaker with automatic failover</div>
+        <p style="font-size:13px;color:var(--text-dim);">Primary SMS: Twilio. Fallback: AWS SNS. Circuit breaker per provider (state stored in Redis, shared across all worker pods): if error rate &gt;5% in a 60-second sliding window → open circuit, route all SMS to fallback provider for 5 minutes, then probe with a single request. If probe succeeds → close circuit and return to primary. During Twilio outage: circuit opens within 60s, all traffic shifts to SNS automatically. For transactional notifications that fail both providers: escalate to email as last resort (delivery channel downgrade, logged for ops). No user sees zero delivery unless both SMS providers and email all fail simultaneously.</p>
+      </div>
+
+      <div class="callout good" style="margin-top:24px;">
+        <strong>Walmart at Scale:</strong> Walmart sends 500M+ notifications per month across 100M+ customers — order confirmations, shipping updates, price drop alerts, and promotional offers. On Black Friday midnight opening, they send 10M+ order confirmation notifications in a 15-minute window — a 40× normal burst. Their platform pre-warms Twilio and SES connection pools 30 minutes before peak, uses Kafka consumer group auto-scaling to add dispatch workers dynamically, and enforces a promotional notification blackout window during the first 2 hours of Black Friday to reserve all channel capacity for transactional order-confirmation traffic.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function scrollTo(id){document.getElementById(id).scrollIntoView({behavior:'smooth',block:'start'});}
+  const sections=['features','nfr','estimation','entities','api','hld','datamodel','tradeoffs'];
+  const navItems=document.querySelectorAll('.nav-item');
+  window.addEventListener('scroll',()=>{
+    let current='';
+    sections.forEach(id=>{const el=document.getElementById(id);if(el&&el.getBoundingClientRect().top<120)current=id;});
+    navItems.forEach((item,i)=>{item.classList.toggle('active',sections[i]===current);});
+  },{passive:true});
+</script>
+</body>
+</html>

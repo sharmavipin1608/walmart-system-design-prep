@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Design: Checkout &amp; Payment System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #151820;
+    --surface2:  #1c2030;
+    --border:    #252a3a;
+    --accent:    #4f8ef7;
+    --accent2:   #7c5cfc;
+    --green:     #3dd68c;
+    --yellow:    #f5c542;
+    --red:       #f76b6b;
+    --muted:     #5a6480;
+    --text:      #e2e8f0;
+    --text-dim:  #8899bb;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; }
+
+  .hero {
+    background: linear-gradient(135deg, #0d0f14 0%, #111628 60%, #0d1525 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 48px 36px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: -80px; right: -80px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(79,142,247,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-eyebrow { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 12px; }
+  .hero h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 10px; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text-dim); font-size: 13px; max-width: 560px; }
+  .tags { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+  .tag { font-family: var(--mono); font-size: 11px; padding: 3px 10px; border-radius: 4px; border: 1px solid; }
+  .tag-blue   { border-color: rgba(79,142,247,.4);  color: var(--accent);  background: rgba(79,142,247,.08); }
+  .tag-green  { border-color: rgba(61,214,140,.4);  color: var(--green);   background: rgba(61,214,140,.08); }
+  .tag-purple { border-color: rgba(124,92,252,.4);  color: var(--accent2); background: rgba(124,92,252,.08); }
+
+  .layout { display: flex; min-height: calc(100vh - 160px); }
+
+  .sidebar {
+    width: 220px; flex-shrink: 0; background: var(--surface);
+    border-right: 1px solid var(--border); padding: 24px 0;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .sidebar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; padding: 0 20px; margin-bottom: 8px; margin-top: 16px; }
+  .sidebar-label:first-child { margin-top: 0; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 20px; cursor: pointer; color: var(--text-dim); font-size: 13px; transition: all 0.15s; border-left: 2px solid transparent; }
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(79,142,247,.06); }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .nav-item.active .nav-dot { background: var(--accent); }
+
+  .main { flex: 1; padding: 32px 40px; max-width: 900px; }
+
+  .section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .section-num { font-family: var(--mono); font-size: 11px; color: var(--accent); background: rgba(79,142,247,.12); border: 1px solid rgba(79,142,247,.25); border-radius: 4px; padding: 2px 8px; flex-shrink: 0; }
+  .section-title { font-size: 16px; font-weight: 600; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; }
+  .card-title { font-weight: 600; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .card p, .card li { color: var(--text-dim); font-size: 13px; }
+  .card ul { padding-left: 16px; }
+  .card li { margin-bottom: 3px; }
+
+  .feature-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; border-top: 2px solid var(--accent); }
+  .feature-card.f2 { border-top-color: var(--green); }
+  .feature-card.f3 { border-top-color: var(--accent2); }
+  .feature-num { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+  .feature-name { font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+  .feature-desc { font-size: 12px; color: var(--text-dim); }
+
+  .nfr-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .nfr-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .nfr-feature { font-family: var(--mono); font-size: 10px; color: var(--accent); margin-bottom: 4px; }
+  .nfr-title { font-weight: 600; font-size: 12px; margin-bottom: 6px; }
+  .nfr-req { font-size: 12px; color: var(--text-dim); }
+
+  .est-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .est-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .est-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; }
+  .est-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .est-row:last-child { border-bottom: none; }
+  .est-key { font-size: 12px; color: var(--text-dim); }
+  .est-val { font-family: var(--mono); font-size: 12px; color: var(--green); font-weight: 600; }
+
+  .api-block { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+  .api-header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .method { font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; min-width: 48px; text-align: center; }
+  .method-get  { background: rgba(61,214,140,.15);  color: var(--green); }
+  .method-post { background: rgba(79,142,247,.15);  color: var(--accent); }
+  .method-put  { background: rgba(245,197,66,.15);  color: var(--yellow); }
+  .method-del  { background: rgba(247,107,107,.15); color: var(--red); }
+  .api-path { font-family: var(--mono); font-size: 12px; color: var(--text); }
+  .api-desc { font-size: 12px; color: var(--text-dim); margin-left: auto; }
+  .api-body { padding: 12px 16px; }
+  .api-body pre { font-family: var(--mono); font-size: 11px; color: var(--text-dim); white-space: pre-wrap; line-height: 1.6; }
+  .api-body pre .key  { color: #7eb8f7; }
+  .api-body pre .str  { color: #98d982; }
+  .api-body pre .num  { color: #f5c542; }
+  .api-body pre .type { color: #c792ea; }
+
+  .arch-diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; font-family: var(--mono); font-size: 12px; overflow-x: auto; }
+  .arch-row { display: flex; align-items: center; justify-content: center; gap: 0; margin: 4px 0; flex-wrap: wrap; }
+  .arch-box { padding: 8px 14px; border-radius: 6px; border: 1px solid; text-align: center; font-size: 11px; white-space: nowrap; }
+  .box-blue   { border-color: rgba(79,142,247,.5);  background: rgba(79,142,247,.1);  color: #7eb8f7; }
+  .box-green  { border-color: rgba(61,214,140,.5);  background: rgba(61,214,140,.1);  color: var(--green); }
+  .box-purple { border-color: rgba(124,92,252,.5);  background: rgba(124,92,252,.1);  color: #a990ff; }
+  .box-yellow { border-color: rgba(245,197,66,.5);  background: rgba(245,197,66,.1);  color: var(--yellow); }
+  .box-red    { border-color: rgba(247,107,107,.5); background: rgba(247,107,107,.1); color: var(--red); }
+  .box-gray   { border-color: var(--border);        background: var(--surface2);      color: var(--text-dim); }
+  .arch-arrow { color: var(--muted); padding: 0 6px; font-size: 14px; }
+  .arch-layer { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 0; border-bottom: 1px dashed var(--border); flex-wrap: wrap; }
+  .arch-layer:last-child { border-bottom: none; }
+  .arch-layer-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; width: 100%; text-align: center; margin-bottom: 8px; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: var(--surface2); color: var(--text-dim); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 7px 12px; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
+  td:first-child { font-family: var(--mono); color: var(--accent); font-size: 11px; }
+  td.type-col { color: var(--green); font-family: var(--mono); font-size: 11px; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .callout { border-left: 3px solid var(--accent); background: rgba(79,142,247,.05); border-radius: 0 6px 6px 0; padding: 12px 16px; margin: 12px 0; font-size: 12px; color: var(--text-dim); }
+  .callout.warn { border-left-color: var(--yellow); background: rgba(245,197,66,.05); }
+  .callout.good { border-left-color: var(--green);  background: rgba(61,214,140,.05); }
+  .callout strong { color: var(--text); }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">System Design Interview</div>
+  <h1>Checkout &amp; <span>Payment System</span></h1>
+  <div class="hero-sub">Walmart Global Tech · Senior/Staff Level · Using the 8-Step Framework</div>
+  <div class="tags">
+    <span class="tag tag-blue">Idempotency</span>
+    <span class="tag tag-green">Immutable Ledger</span>
+    <span class="tag tag-purple">Saga Pattern</span>
+    <span class="tag tag-blue">PCI Compliance</span>
+    <span class="tag tag-green">Kafka</span>
+    <span class="tag tag-purple">Exactly-Once</span>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-label">Framework</div>
+    <div class="nav-item active" onclick="scrollTo('features')"><span class="nav-dot"></span>1. Features</div>
+    <div class="nav-item" onclick="scrollTo('nfr')"><span class="nav-dot"></span>2. NFRs</div>
+    <div class="nav-item" onclick="scrollTo('estimation')"><span class="nav-dot"></span>3. Estimation</div>
+    <div class="nav-item" onclick="scrollTo('entities')"><span class="nav-dot"></span>4. Core Entities</div>
+    <div class="nav-item" onclick="scrollTo('api')"><span class="nav-dot"></span>5. API Design</div>
+    <div class="nav-item" onclick="scrollTo('hld')"><span class="nav-dot"></span>6. High Level Design</div>
+    <div class="nav-item" onclick="scrollTo('datamodel')"><span class="nav-dot"></span>7. Data Model</div>
+    <div class="nav-item" onclick="scrollTo('tradeoffs')"><span class="nav-dot"></span>8. Tradeoffs &amp; Deep Dive</div>
+  </nav>
+
+  <main class="main">
+
+    <!-- 1. FEATURES -->
+    <div class="section" id="features">
+      <div class="section-header">
+        <span class="section-num">01</span>
+        <span class="section-title">Feature Selection</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Don't just list features — present candidates and narrow to 3 with the interviewer. For payments, anchor immediately on idempotency: it signals you understand why this domain is hard.
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card f1">
+          <div class="feature-num">FEATURE 01</div>
+          <div class="feature-name">Payment Authorization &amp; Capture</div>
+          <div class="feature-desc">Process payments end-to-end: initiate, authorize with Visa/MC/PayPal, and capture funds. Maintain an immutable ledger of every state transition.</div>
+        </div>
+        <div class="feature-card f2">
+          <div class="feature-num">FEATURE 02</div>
+          <div class="feature-name">Idempotent Retry &amp; Refund</div>
+          <div class="feature-desc">Handle network retries without double-charging. Process partial and full refunds with at-most-once execution guarantees via idempotency keys.</div>
+        </div>
+        <div class="feature-card f3">
+          <div class="feature-num">FEATURE 03</div>
+          <div class="feature-name">Settlement &amp; Reconciliation</div>
+          <div class="feature-desc">Batch captured payments into end-of-day settlement runs to the bank. Reconcile ledger against bank statements and flag discrepancies.</div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;">
+        <div style="font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size: 12px; color: var(--text-dim); line-height: 1.8;">
+          PCI vault &amp; card tokenization service &nbsp;·&nbsp; Real-time fraud scoring &nbsp;·&nbsp; Multi-currency FX conversion &nbsp;·&nbsp; Gift card &amp; loyalty points redemption &nbsp;·&nbsp; Crypto payments
+        </div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 8px;"><strong style="color: var(--text-dim);">Why mention it:</strong> Shows awareness of the full payments domain without scope creep — each is a system of its own.</div>
+      </div>
+    </div>
+
+    <!-- 2. NFRs -->
+    <div class="section" id="nfr">
+      <div class="section-header">
+        <span class="section-num">02</span>
+        <span class="section-title">Non-Functional Requirements</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Per-feature NFR mapping is a staff-level signal. Don't list generic "scalability and availability" — map each NFR to a specific feature and justify the number.
+      </div>
+      <div class="nfr-grid">
+        <div class="nfr-card">
+          <div class="nfr-feature">Authorization</div>
+          <div class="nfr-title">Exactly-Once Execution</div>
+          <div class="nfr-req">A payment must be charged exactly once regardless of retries. Idempotency key required on every mutation.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">Authorization</div>
+          <div class="nfr-title">Low Latency: p99 &lt; 500ms</div>
+          <div class="nfr-req">Gateway calls are async — Kafka-mediated. The synchronous path (initiate + ledger write) must be &lt;200ms.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">Authorization</div>
+          <div class="nfr-title">High Availability: 99.999%</div>
+          <div class="nfr-req">&lt;5 min downtime/year. Payment failure = revenue loss. Multi-AZ Postgres with synchronous replication.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">Retry &amp; Refund</div>
+          <div class="nfr-title">At-Most-Once Charge</div>
+          <div class="nfr-req">No double charges on network timeout. Refund ACK within 2s. Refund execution eventual but guaranteed.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">Settlement</div>
+          <div class="nfr-title">Eventual Consistency OK</div>
+          <div class="nfr-req">Settlement runs end-of-day. 4-hour batch SLA. Reconciliation accuracy must be 100% — flag every mismatch.</div>
+        </div>
+        <div class="nfr-card">
+          <div class="nfr-feature">System-Wide</div>
+          <div class="nfr-title">PCI DSS Compliance</div>
+          <div class="nfr-req">No raw card data in any service. Store only tokenized references. All payment data encrypted at rest and in transit.</div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;">
+        <div style="font-family: var(--mono); font-size: 10px; color: var(--red); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size: 12px; color: var(--text-dim); line-height: 1.8;">
+          Real-time fraud scoring latency &nbsp;·&nbsp; Multi-region active-active replication &nbsp;·&nbsp; Chargeback dispute SLA &nbsp;·&nbsp; GDPR right-to-erasure for payment data
+        </div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 8px;"><strong style="color: var(--text-dim);">Why mention it:</strong> Prevents mid-interview scope creep and signals production awareness.</div>
+      </div>
+    </div>
+
+    <!-- 3. ESTIMATION -->
+    <div class="section" id="estimation">
+      <div class="section-header">
+        <span class="section-num">03</span>
+        <span class="section-title">Back of Envelope Estimation</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Numbers justify architecture. "50K TPS peak → Redis idempotency cache is not optional." Drive every component choice from a number.
+      </div>
+      <div class="est-grid">
+        <div class="est-card">
+          <div class="est-label">Assumptions</div>
+          <div class="est-row"><span class="est-key">Transactions/day (normal)</span><span class="est-val">5M</span></div>
+          <div class="est-row"><span class="est-key">Peak multiplier (Black Friday)</span><span class="est-val">10×</span></div>
+          <div class="est-row"><span class="est-key">Avg payment payload</span><span class="est-val">5 KB</span></div>
+          <div class="est-row"><span class="est-key">Read:Write ratio</span><span class="est-val">5:1</span></div>
+          <div class="est-row"><span class="est-key">Avg ledger entries/txn</span><span class="est-val">4 rows</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Derived Numbers</div>
+          <div class="est-row"><span class="est-key">Write TPS (normal)</span><span class="est-val">~58 TPS</span></div>
+          <div class="est-row"><span class="est-key">Write TPS (peak)</span><span class="est-val">~580 TPS</span></div>
+          <div class="est-row"><span class="est-key">Read TPS (peak)</span><span class="est-val">~2,900 TPS</span></div>
+          <div class="est-row"><span class="est-key">Ledger rows/day</span><span class="est-val">~20M rows</span></div>
+          <div class="est-row"><span class="est-key">Storage/day</span><span class="est-val">~2.5 GB</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Black Friday Peak</div>
+          <div class="est-row"><span class="est-key">Peak window TPS</span><span class="est-val">~580 TPS</span></div>
+          <div class="est-row"><span class="est-key">Idempotency cache hits</span><span class="est-val">~5% retry rate</span></div>
+          <div class="est-row"><span class="est-key">Gateway async calls/s</span><span class="est-val">~580/s</span></div>
+          <div class="est-row"><span class="est-key">Settlement batch size</span><span class="est-val">~50M txns</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Conclusions</div>
+          <div class="est-row"><span class="est-key">Ledger DB (Postgres)</span><span class="est-val">~2 primary shards</span></div>
+          <div class="est-row"><span class="est-key">Redis idempotency cache</span><span class="est-val">Required at 580 TPS</span></div>
+          <div class="est-row"><span class="est-key">Kafka gateway topic</span><span class="est-val">10–20 partitions</span></div>
+          <div class="est-row"><span class="est-key">1-year ledger storage</span><span class="est-val">~900 GB</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. CORE ENTITIES -->
+    <div class="section" id="entities">
+      <div class="section-header">
+        <span class="section-num">04</span>
+        <span class="section-title">Core Entities</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Define entities before API — they anchor your data model and make API shapes obvious. The key question here: what is mutable vs append-only?
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="card">
+          <div class="card-title" style="color: var(--accent);">💳 PaymentOrder</div>
+          <p>The top-level intent: a customer wants to pay for an order. Has a lifecycle tracked by replaying ledger entries. Never mutated directly.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">payment_order_id · order_id · amount_cents · currency · idempotency_key · created_at</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--green);">📋 PaymentLedgerEntry</div>
+          <p>Immutable, append-only record of every state transition. The source of truth. Never UPDATE this table — only INSERT. Current state is derived by replaying entries.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">entry_id · payment_order_id · event_type · amount_cents · gateway_ref · created_at</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--accent2);">🔐 PaymentToken</div>
+          <p>Tokenized card reference stored in the PCI vault. No raw PAN ever leaves the vault. Services receive only the token, which is useless if stolen.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">token_id · last4 · card_brand · expiry_month · expiry_year · gateway_token · user_id</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--yellow);">🏦 GatewayResponse</div>
+          <p>Raw async response from Visa/Mastercard/PayPal. Stored verbatim for audit. The gateway consumer translates this into a ledger entry.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">response_id · payment_order_id · gateway · status_code · auth_code · received_at</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--red);">💸 Refund</div>
+          <p>A reversal linked to a captured PaymentLedgerEntry. Partial or full. Has its own idempotency key — a retry must not issue a double refund.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">refund_id · original_entry_id · amount_cents · reason · idempotency_key · status</div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="color: var(--text-dim);">📊 SettlementBatch</div>
+          <p>End-of-day grouping of CAPTURED payments sent to the bank via wire. One batch per gateway per day. Reconciliation compares batch total vs bank confirmation.</p>
+          <div style="margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);">batch_id · settlement_date · gateway · total_amount_cents · status · completed_at</div>
+        </div>
+      </div>
+      <div class="callout" style="margin-top: 16px;">
+        <strong>Key relationship:</strong> PaymentLedgerEntry is the append-only history; PaymentOrder state is derived by replaying it. Like double-entry bookkeeping — you only add rows, you never erase them.
+      </div>
+    </div>
+
+    <!-- 5. API -->
+    <div class="section" id="api">
+      <div class="section-header">
+        <span class="section-num">05</span>
+        <span class="section-title">API Design</span>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.08em;">Feature 1 — Authorization &amp; Capture</div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-post">POST</span>
+          <span class="api-path">/v1/payments</span>
+          <span class="api-desc">Initiate a payment order</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Request:</span>
+{
+  <span class="key">"order_id"</span>: <span class="str">"ORD-789"</span>,
+  <span class="key">"amount_cents"</span>: <span class="num">4999</span>,
+  <span class="key">"currency"</span>: <span class="str">"USD"</span>,
+  <span class="key">"payment_token_id"</span>: <span class="str">"tok_abc123"</span>,
+  <span class="key">"idempotency_key"</span>: <span class="str">"checkout-session-xyz"</span>
+}
+<span class="key">Response:</span>
+{ <span class="key">"payment_order_id"</span>: <span class="str">"PAY-456"</span>, <span class="key">"status"</span>: <span class="str">"INITIATED"</span> }</pre>
+        </div>
+      </div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-post">POST</span>
+          <span class="api-path">/v1/payments/{id}/capture</span>
+          <span class="api-desc">Finalize charge after authorization</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Response:</span>
+{ <span class="key">"status"</span>: <span class="str">"CAPTURED"</span>, <span class="key">"ledger_entry_id"</span>: <span class="str">"ENT-001"</span>, <span class="key">"captured_at"</span>: <span class="str">"2025-11-29T14:32:00Z"</span> }</pre>
+        </div>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--green); margin: 20px 0 16px; text-transform: uppercase; letter-spacing: 0.08em;">Feature 2 — Retry &amp; Refund</div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-post">POST</span>
+          <span class="api-path">/v1/payments/{id}/refund</span>
+          <span class="api-desc">Issue partial or full refund</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Request:</span>
+{
+  <span class="key">"amount_cents"</span>: <span class="num">1999</span>,      <span class="type">// partial refund</span>
+  <span class="key">"reason"</span>: <span class="str">"CUSTOMER_REQUEST"</span>,
+  <span class="key">"idempotency_key"</span>: <span class="str">"refund-req-abc"</span>
+}
+<span class="key">Response:</span>
+{ <span class="key">"refund_id"</span>: <span class="str">"REF-321"</span>, <span class="key">"status"</span>: <span class="str">"REFUND_INITIATED"</span> }</pre>
+        </div>
+      </div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-get">GET</span>
+          <span class="api-path">/v1/payments/{id}</span>
+          <span class="api-desc">Get current state (derived from ledger replay)</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Response:</span>
+{ <span class="key">"status"</span>: <span class="str">"CAPTURED"</span>, <span class="key">"amount_cents"</span>: <span class="num">4999</span>, <span class="key">"ledger_entries"</span>: [<span class="str">"INITIATED"</span>, <span class="str">"AUTHORIZED"</span>, <span class="str">"CAPTURED"</span>] }</pre>
+        </div>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent2); margin: 20px 0 16px; text-transform: uppercase; letter-spacing: 0.08em;">Feature 3 — Settlement</div>
+
+      <div class="api-block">
+        <div class="api-header">
+          <span class="method method-post">POST</span>
+          <span class="api-path">/v1/settlements/trigger</span>
+          <span class="api-desc">Kick off end-of-day settlement batch (internal)</span>
+        </div>
+        <div class="api-body">
+          <pre><span class="key">Request:</span> { <span class="key">"date"</span>: <span class="str">"2025-11-29"</span>, <span class="key">"gateway"</span>: <span class="str">"VISA"</span> }
+<span class="key">Response:</span> { <span class="key">"batch_id"</span>: <span class="str">"SETTLE-20251129-VISA"</span>, <span class="key">"status"</span>: <span class="str">"RUNNING"</span> }</pre>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <strong>Idempotency is non-negotiable:</strong> Every mutation endpoint requires an <code>idempotency_key</code>. Retrying with the same key returns the cached response without re-executing. A retry on a failed authorization must not issue a second charge.
+      </div>
+    </div>
+
+    <!-- 6. HLD -->
+    <div class="section" id="hld">
+      <div class="section-header">
+        <span class="section-num">06</span>
+        <span class="section-title">High Level Design</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Build incrementally — one feature at a time. Start minimal, then show what each feature adds. Don't draw the full diagram upfront.
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">Feature 1 — Authorization &amp; Capture</div>
+      <div class="arch-diagram">
+        <div class="arch-layer">
+          <div class="arch-layer-label">Client Layer</div>
+          <div class="arch-box box-blue">POS Terminal</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-blue">Web Checkout</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-blue">Mobile App</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Service Layer</div>
+          <div class="arch-box box-gray">API Gateway</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-blue">Payment Service</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-green">Postgres Ledger</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Async Gateway Path</div>
+          <div class="arch-box box-blue">Payment Service</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-yellow">Kafka: gateway.requests</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-gray">Gateway Adapter</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-purple">Visa / MC / PayPal</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Response Path</div>
+          <div class="arch-box box-purple">External Gateway</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-yellow">Kafka: gateway.responses</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-gray">Gateway Consumer</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-green">Postgres Ledger (append AUTHORIZED)</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top: 12px;">
+        <div class="card-title">Flow: Authorization</div>
+        <p>Client calls POST /v1/payments → Payment Service appends INITIATED to ledger → publishes gateway request to Kafka → Gateway Adapter calls external API (async, up to 30s timeout) → response arrives on Kafka → Gateway Consumer appends AUTHORIZED or FAILED to ledger. Client polls GET /v1/payments/{id} for status.</p>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--green); text-transform: uppercase; letter-spacing: 0.08em; margin: 24px 0 12px;">Feature 2 — Idempotent Retry &amp; Refund (adds to F1)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer">
+          <div class="arch-layer-label">New: Idempotency Layer</div>
+          <div class="arch-box box-blue">Payment Service</div>
+          <div class="arch-arrow">→ check first →</div>
+          <div class="arch-box box-red">Redis Idempotency Cache</div>
+          <div class="arch-arrow">→ hit: return cached</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">New: Refund Path</div>
+          <div class="arch-box box-green">Refund Service</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-yellow">Kafka: refund.requests</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-gray">Gateway Adapter (reverse charge)</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Ledger Entries</div>
+          <div class="arch-box box-green">REFUND_INITIATED</div>
+          <div class="arch-arrow">→ appended →</div>
+          <div class="arch-box box-green">REFUND_COMPLETED</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top: 12px;">
+        <div class="card-title">Flow: Idempotency</div>
+        <p>On every mutation, Payment Service first checks Redis: GET idempotency:{key}. Cache hit → return stored response immediately, no gateway call. Cache miss → process normally, then SET idempotency:{key} = response with 24h TTL. This prevents double-charges on network retries without DB overhead on every request.</p>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.08em; margin: 24px 0 12px;">Feature 3 — Settlement &amp; Reconciliation (adds to F1)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer">
+          <div class="arch-layer-label">New: Settlement Path</div>
+          <div class="arch-box box-purple">Settlement Job (cron: EOD)</div>
+          <div class="arch-arrow">→ reads CAPTURED entries →</div>
+          <div class="arch-box box-green">Postgres Ledger</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Bank Wire</div>
+          <div class="arch-box box-purple">Settlement Job</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-gray">Bank Wire API</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-purple">SettlementBatch (COMPLETED)</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">New: Reconciliation</div>
+          <div class="arch-box box-yellow">Reconciliation Service</div>
+          <div class="arch-arrow">compares</div>
+          <div class="arch-box box-green">Ledger total</div>
+          <div class="arch-arrow">vs</div>
+          <div class="arch-box box-gray">Bank Statement</div>
+          <div class="arch-arrow">→ flags mismatches</div>
+        </div>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin: 24px 0 12px;">Merged Full Architecture</div>
+      <div class="arch-diagram">
+        <div class="arch-layer">
+          <div class="arch-layer-label">Clients</div>
+          <div class="arch-box box-blue">POS / Web / Mobile</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">API Layer</div>
+          <div class="arch-box box-gray">API Gateway</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-blue">Payment Service</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-green">Refund Service</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Storage &amp; Messaging</div>
+          <div class="arch-box box-green">Postgres Ledger</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-red">Redis (Idempotency)</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-yellow">Kafka</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">External &amp; Batch</div>
+          <div class="arch-box box-gray">Gateway Adapters</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box box-purple">Visa / MC / PayPal</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-purple">Settlement Job</div>
+          <div class="arch-arrow">·</div>
+          <div class="arch-box box-yellow">Reconciliation Svc</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. DATA MODEL -->
+    <div class="section" id="datamodel">
+      <div class="section-header">
+        <span class="section-num">07</span>
+        <span class="section-title">Data Model</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Don't list every field — focus on the columns that drive design decisions: shard keys, idempotency constraints, append-only patterns, TTLs.
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--green); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px;">Postgres — payments_ledger (append-only, never UPDATE)</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>entry_id</td><td class="type-col">UUID</td><td>PRIMARY KEY</td></tr>
+            <tr><td>payment_order_id</td><td class="type-col">UUID</td><td>FK to PaymentOrder, indexed</td></tr>
+            <tr><td>event_type</td><td class="type-col">ENUM</td><td>INITIATED / AUTHORIZED / CAPTURED / REFUNDED / SETTLED</td></tr>
+            <tr><td>amount_cents</td><td class="type-col">BIGINT</td><td>Always positive; direction implied by event_type</td></tr>
+            <tr><td>gateway_ref</td><td class="type-col">VARCHAR</td><td>External auth code from gateway</td></tr>
+            <tr><td>idempotency_key</td><td class="type-col">VARCHAR</td><td>UNIQUE per (event_type, payment_order_id) — prevents replay</td></tr>
+            <tr><td>created_at</td><td class="type-col">TIMESTAMPTZ</td><td>Immutable — never add updated_at to this table</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--red); text-transform: uppercase; letter-spacing: 0.08em; margin: 20px 0 10px;">Redis — idempotency_cache (String)</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Key Pattern</th><th>Value</th><th>TTL</th></tr></thead>
+          <tbody>
+            <tr><td>idem:{idempotency_key}</td><td class="type-col">Serialized response JSON</td><td>24 hours</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.08em; margin: 20px 0 10px;">Postgres — settlement_batches</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>batch_id</td><td class="type-col">VARCHAR</td><td>Pattern: SETTLE-{date}-{gateway}</td></tr>
+            <tr><td>settlement_date</td><td class="type-col">DATE</td><td>Unique per gateway per day</td></tr>
+            <tr><td>gateway</td><td class="type-col">ENUM</td><td>VISA / MASTERCARD / PAYPAL</td></tr>
+            <tr><td>total_amount_cents</td><td class="type-col">BIGINT</td><td>Sum of all CAPTURED entries for the day</td></tr>
+            <tr><td>status</td><td class="type-col">ENUM</td><td>PENDING / RUNNING / COMPLETED / FAILED</td></tr>
+            <tr><td>completed_at</td><td class="type-col">TIMESTAMPTZ</td><td>Null until bank confirms wire receipt</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn" style="margin-top: 16px;">
+        <strong>Never add updated_at to the ledger table.</strong> If you feel the urge to update a ledger row, you're modeling state incorrectly — append a new entry instead.
+      </div>
+    </div>
+
+    <!-- 8. TRADEOFFS -->
+    <div class="section" id="tradeoffs">
+      <div class="section-header">
+        <span class="section-num">08</span>
+        <span class="section-title">Tradeoffs &amp; Deep Dives</span>
+      </div>
+      <div class="callout">
+        <strong>Interview tip:</strong> Each deep dive is triggered by an NFR. Use the BAD → GOOD → GREAT escalation pattern. Explain why the naive approach fails before proposing the better one.
+      </div>
+
+      <!-- Deep Dive 1 -->
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); margin: 24px 0 8px;">NFR: EXACTLY-ONCE CHARGE</div>
+      <p style="font-weight: 600; margin-bottom: 12px; font-size: 14px;">How do you prevent double-charging when the checkout service retries on timeout?</p>
+
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--red);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--red); margin-bottom: 8px;">❌ BAD — No idempotency</div>
+        <p style="font-size: 13px; color: var(--text-dim);">Checkout service retries POST /v1/payments on timeout. Payment Service processes each request independently. Customer charged 2× for one order. Support tickets spike. Chargebacks follow. Fails at production scale.</p>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--yellow);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--yellow); margin-bottom: 8px;">⚠ GOOD — DB unique constraint on idempotency_key</div>
+        <p style="font-size: 13px; color: var(--text-dim);">Add UNIQUE(idempotency_key, event_type) to the ledger table. Duplicate INSERT throws constraint violation → return original response. Works but: DB write on every request at 580 TPS adds contention; doesn't return the original response body cleanly; slow under high retry load.</p>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--green);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--green); margin-bottom: 8px;">✅ GREAT — Redis idempotency cache as fast path</div>
+        <p style="font-size: 13px; color: var(--text-dim);">Before any processing: GET idem:{idempotency_key} from Redis. Cache hit → return stored JSON response in &lt;1ms, no DB write, no gateway call. Cache miss → process normally, then SET idem:{key} = response EX 86400. DB unique constraint remains as safety net if Redis is cold. Result: zero double-charges, sub-1ms overhead on retries, DB constraint catches the rare Redis miss.</p>
+      </div>
+
+      <!-- Deep Dive 2 -->
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--green); margin: 32px 0 8px;">NFR: IMMUTABLE AUDIT TRAIL</div>
+      <p style="font-weight: 600; margin-bottom: 12px; font-size: 14px;">How do you maintain payment state without risking data corruption from concurrent updates?</p>
+
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--red);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--red); margin-bottom: 8px;">❌ BAD — Mutable status column</div>
+        <p style="font-size: 13px; color: var(--text-dim);">Single payments table with a status column. UPDATE payments SET status='AUTHORIZED' WHERE id=X. Race conditions when two concurrent events try to update. Lost history — you can't reconstruct what happened when. Audit logs stored separately get out of sync. Fails PCI audit requirements.</p>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--yellow);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--yellow); margin-bottom: 8px;">⚠ GOOD — Optimistic locking with version column</div>
+        <p style="font-size: 13px; color: var(--text-dim);">UPDATE payments SET status='AUTHORIZED', version=version+1 WHERE id=X AND version=3. Prevents concurrent corruption. But still mutable state — you lose history, can't reconstruct timeline, UPDATE on hot row creates lock contention at 580 TPS.</p>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--green);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--green); margin-bottom: 8px;">✅ GREAT — Append-only ledger, state derived from replay</div>
+        <p style="font-size: 13px; color: var(--text-dim);">Never UPDATE the ledger. Only INSERT. Current state = SELECT event_type FROM payments_ledger WHERE payment_order_id=X ORDER BY created_at. State machine transitions enforced in application layer: INITIATED→AUTHORIZED is valid, CAPTURED→INITIATED is rejected. Full audit trail is the table itself. Concurrent inserts are fine — each is its own row. Zero lock contention. PCI audit-ready by design.</p>
+      </div>
+
+      <!-- Deep Dive 3 -->
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent2); margin: 32px 0 8px;">NFR: ATOMICITY ACROSS SERVICES</div>
+      <p style="font-weight: 600; margin-bottom: 12px; font-size: 14px;">How do you ensure inventory deduction + payment + order creation either all succeed or all roll back?</p>
+
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--red);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--red); margin-bottom: 8px;">❌ BAD — Two-phase commit (2PC)</div>
+        <p style="font-size: 13px; color: var(--text-dim);">Distributed transaction coordinator holds locks across Inventory, Payment, and Order DBs during prepare phase. One slow service blocks all. Gateway timeout (up to 30s) means 30s of locked inventory. At 580 TPS this is a system-wide bottleneck. Not viable.</p>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--yellow);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--yellow); margin-bottom: 8px;">⚠ GOOD — Outbox pattern</div>
+        <p style="font-size: 13px; color: var(--text-dim);">Each service writes to its local DB and an outbox table in the same transaction. CDC reads outbox and publishes to Kafka. At-least-once delivery. Better, but requires compensating transactions to be explicitly coded for each failure scenario. Complex to maintain.</p>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 10px; border-left: 3px solid var(--green);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--green); margin-bottom: 8px;">✅ GREAT — Choreography-based Saga via Kafka</div>
+        <p style="font-size: 13px; color: var(--text-dim);">Each service listens to Kafka events and publishes its own. Flow: Inventory Service reserves stock → publishes <em>inventory.reserved</em> → Payment Service authorizes → publishes <em>payment.authorized</em> → Order Service confirms → publishes <em>order.confirmed</em>. Compensating events: <em>payment.failed</em> → Inventory Service publishes <em>inventory.reservation.cancelled</em>. No coordinator, no blocking. Each service is autonomous. Failure handling is explicit, testable, and traceable in Kafka topic history.</p>
+      </div>
+
+      <div class="callout good" style="margin-top: 24px;">
+        <strong>Walmart at Scale:</strong> Walmart processes $500B+ in annual GMV. Their payment system uses WalmartPay tokenization (no raw PAN in any microservice) and a choreography-based Saga for distributed checkout. On Black Friday, their payment authorization service handles 50K+ TPS by keeping the synchronous path (ledger write + idempotency cache check) under 50ms and offloading all gateway communication to Kafka-mediated async workers with independent scaling.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function scrollTo(id) {
+    document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  const sections = ['features','nfr','estimation','entities','api','hld','datamodel','tradeoffs'];
+  const navItems = document.querySelectorAll('.nav-item');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.getBoundingClientRect().top < 120) current = id;
+    });
+    navItems.forEach((item, i) => {
+      item.classList.toggle('active', sections[i] === current);
+    });
+  }, { passive: true });
+</script>
+</body>
+</html>

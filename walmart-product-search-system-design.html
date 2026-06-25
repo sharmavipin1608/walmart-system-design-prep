@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Design: Product Search System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg:#0d0f14; --surface:#151820; --surface2:#1c2030; --border:#252a3a;
+    --accent:#4f8ef7; --accent2:#7c5cfc; --green:#3dd68c; --yellow:#f5c542;
+    --red:#f76b6b; --muted:#5a6480; --text:#e2e8f0; --text-dim:#8899bb;
+    --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; line-height:1.6; }
+  .hero { background:linear-gradient(135deg,#0d0f14 0%,#111628 60%,#0d1525 100%); border-bottom:1px solid var(--border); padding:48px 48px 36px; position:relative; overflow:hidden; }
+  .hero::before { content:''; position:absolute; top:-80px; right:-80px; width:320px; height:320px; background:radial-gradient(circle,rgba(79,142,247,0.12) 0%,transparent 70%); pointer-events:none; }
+  .hero-eyebrow { font-family:var(--mono); font-size:11px; color:var(--accent); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:12px; }
+  .hero h1 { font-size:28px; font-weight:700; letter-spacing:-0.02em; line-height:1.2; margin-bottom:10px; }
+  .hero h1 span { color:var(--accent); }
+  .hero-sub { color:var(--text-dim); font-size:13px; max-width:560px; }
+  .tags { display:flex; gap:8px; margin-top:18px; flex-wrap:wrap; }
+  .tag { font-family:var(--mono); font-size:11px; padding:3px 10px; border-radius:4px; border:1px solid; }
+  .tag-blue { border-color:rgba(79,142,247,.4); color:var(--accent); background:rgba(79,142,247,.08); }
+  .tag-green { border-color:rgba(61,214,140,.4); color:var(--green); background:rgba(61,214,140,.08); }
+  .tag-purple { border-color:rgba(124,92,252,.4); color:var(--accent2); background:rgba(124,92,252,.08); }
+  .layout { display:flex; min-height:calc(100vh - 160px); }
+  .sidebar { width:220px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border); padding:24px 0; position:sticky; top:0; height:100vh; overflow-y:auto; }
+  .sidebar-label { font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; padding:0 20px; margin-bottom:8px; margin-top:16px; }
+  .sidebar-label:first-child { margin-top:0; }
+  .nav-item { display:flex; align-items:center; gap:8px; padding:7px 20px; cursor:pointer; color:var(--text-dim); font-size:13px; transition:all 0.15s; border-left:2px solid transparent; }
+  .nav-item:hover { color:var(--text); background:var(--surface2); }
+  .nav-item.active { color:var(--accent); border-left-color:var(--accent); background:rgba(79,142,247,.06); }
+  .nav-dot { width:6px; height:6px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+  .nav-item.active .nav-dot { background:var(--accent); }
+  .main { flex:1; padding:32px 40px; max-width:900px; }
+  .section { margin-bottom:48px; scroll-margin-top:24px; }
+  .section-header { display:flex; align-items:center; gap:12px; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+  .section-num { font-family:var(--mono); font-size:11px; color:var(--accent); background:rgba(79,142,247,.12); border:1px solid rgba(79,142,247,.25); border-radius:4px; padding:2px 8px; flex-shrink:0; }
+  .section-title { font-size:16px; font-weight:600; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px 20px; margin-bottom:12px; }
+  .card-title { font-weight:600; font-size:13px; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+  .card p,.card li { color:var(--text-dim); font-size:13px; }
+  .card ul { padding-left:16px; }
+  .card li { margin-bottom:3px; }
+  .feature-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .feature-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px; border-top:2px solid var(--accent); }
+  .feature-card.f2 { border-top-color:var(--green); }
+  .feature-card.f3 { border-top-color:var(--accent2); }
+  .feature-num { font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:6px; }
+  .feature-name { font-weight:600; font-size:13px; margin-bottom:8px; }
+  .feature-desc { font-size:12px; color:var(--text-dim); }
+  .nfr-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .nfr-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px 16px; }
+  .nfr-feature { font-family:var(--mono); font-size:10px; color:var(--accent); margin-bottom:4px; }
+  .nfr-title { font-weight:600; font-size:12px; margin-bottom:6px; }
+  .nfr-req { font-size:12px; color:var(--text-dim); }
+  .est-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .est-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px; }
+  .est-label { font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; }
+  .est-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
+  .est-row:last-child { border-bottom:none; }
+  .est-key { font-size:12px; color:var(--text-dim); }
+  .est-val { font-family:var(--mono); font-size:12px; color:var(--green); font-weight:600; }
+  .api-block { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:12px; }
+  .api-header { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--surface2); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .method { font-family:var(--mono); font-size:11px; font-weight:600; padding:2px 8px; border-radius:3px; min-width:48px; text-align:center; }
+  .method-get  { background:rgba(61,214,140,.15); color:var(--green); }
+  .method-post { background:rgba(79,142,247,.15); color:var(--accent); }
+  .method-put  { background:rgba(245,197,66,.15); color:var(--yellow); }
+  .method-del  { background:rgba(247,107,107,.15); color:var(--red); }
+  .api-path { font-family:var(--mono); font-size:11px; color:var(--text); word-break:break-all; }
+  .api-desc { font-size:12px; color:var(--text-dim); margin-left:auto; }
+  .api-body { padding:12px 16px; }
+  .api-body pre { font-family:var(--mono); font-size:11px; color:var(--text-dim); white-space:pre-wrap; line-height:1.6; }
+  .api-body pre .key { color:#7eb8f7; }
+  .api-body pre .str { color:#98d982; }
+  .api-body pre .num { color:#f5c542; }
+  .api-body pre .type { color:#c792ea; }
+  .arch-diagram { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:24px; font-family:var(--mono); font-size:12px; overflow-x:auto; }
+  .arch-row { display:flex; align-items:center; justify-content:center; gap:0; margin:4px 0; flex-wrap:wrap; }
+  .arch-box { padding:8px 14px; border-radius:6px; border:1px solid; text-align:center; font-size:11px; white-space:nowrap; }
+  .box-blue   { border-color:rgba(79,142,247,.5); background:rgba(79,142,247,.1); color:#7eb8f7; }
+  .box-green  { border-color:rgba(61,214,140,.5); background:rgba(61,214,140,.1); color:var(--green); }
+  .box-purple { border-color:rgba(124,92,252,.5); background:rgba(124,92,252,.1); color:#a990ff; }
+  .box-yellow { border-color:rgba(245,197,66,.5); background:rgba(245,197,66,.1); color:var(--yellow); }
+  .box-red    { border-color:rgba(247,107,107,.5); background:rgba(247,107,107,.1); color:var(--red); }
+  .box-gray   { border-color:var(--border); background:var(--surface2); color:var(--text-dim); }
+  .arch-arrow { color:var(--muted); padding:0 6px; font-size:14px; }
+  .arch-layer { display:flex; align-items:center; justify-content:center; gap:8px; padding:12px 0; border-bottom:1px dashed var(--border); flex-wrap:wrap; }
+  .arch-layer:last-child { border-bottom:none; }
+  .arch-layer-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; width:100%; text-align:center; margin-bottom:8px; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { background:var(--surface2); color:var(--text-dim); font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.08em; padding:8px 12px; text-align:left; border-bottom:1px solid var(--border); }
+  td { padding:7px 12px; border-bottom:1px solid var(--border); color:var(--text-dim); vertical-align:top; }
+  td:first-child { font-family:var(--mono); color:var(--accent); font-size:11px; }
+  td.type-col { color:var(--green); font-family:var(--mono); font-size:11px; }
+  tr:hover td { background:rgba(255,255,255,.02); }
+  .callout { border-left:3px solid var(--accent); background:rgba(79,142,247,.05); border-radius:0 6px 6px 0; padding:12px 16px; margin:12px 0; font-size:12px; color:var(--text-dim); }
+  .callout.warn { border-left-color:var(--yellow); background:rgba(245,197,66,.05); }
+  .callout.good { border-left-color:var(--green); background:rgba(61,214,140,.05); }
+  .callout strong { color:var(--text); }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">System Design Interview</div>
+  <h1>Product <span>Search System</span></h1>
+  <div class="hero-sub">Walmart Global Tech · Senior/Staff Level · Using the 8-Step Framework</div>
+  <div class="tags">
+    <span class="tag tag-blue">Elasticsearch</span>
+    <span class="tag tag-green">Typeahead</span>
+    <span class="tag tag-purple">Kafka CDC</span>
+    <span class="tag tag-blue">Relevance Ranking</span>
+    <span class="tag tag-green">Redis Cache</span>
+    <span class="tag tag-purple">Read-Heavy</span>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-label">Framework</div>
+    <div class="nav-item active" onclick="scrollTo('features')"><span class="nav-dot"></span>1. Features</div>
+    <div class="nav-item" onclick="scrollTo('nfr')"><span class="nav-dot"></span>2. NFRs</div>
+    <div class="nav-item" onclick="scrollTo('estimation')"><span class="nav-dot"></span>3. Estimation</div>
+    <div class="nav-item" onclick="scrollTo('entities')"><span class="nav-dot"></span>4. Core Entities</div>
+    <div class="nav-item" onclick="scrollTo('api')"><span class="nav-dot"></span>5. API Design</div>
+    <div class="nav-item" onclick="scrollTo('hld')"><span class="nav-dot"></span>6. High Level Design</div>
+    <div class="nav-item" onclick="scrollTo('datamodel')"><span class="nav-dot"></span>7. Data Model</div>
+    <div class="nav-item" onclick="scrollTo('tradeoffs')"><span class="nav-dot"></span>8. Tradeoffs &amp; Deep Dive</div>
+  </nav>
+
+  <main class="main">
+
+    <div class="section" id="features">
+      <div class="section-header"><span class="section-num">01</span><span class="section-title">Feature Selection</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Present 5–6 candidates, narrow to 3 with the interviewer. For search, anchor on the query path vs. the indexing path — they're separate systems that must be designed independently.</div>
+      <div class="feature-grid">
+        <div class="feature-card f1">
+          <div class="feature-num">FEATURE 01</div>
+          <div class="feature-name">Full-Text Search with Faceted Filtering</div>
+          <div class="feature-desc">Keyword search over 500M products with category, price range, brand, and rating filters. Return ranked results with facet counts.</div>
+        </div>
+        <div class="feature-card f2">
+          <div class="feature-num">FEATURE 02</div>
+          <div class="feature-name">Typeahead / Autocomplete</div>
+          <div class="feature-desc">Prefix-based suggestions as user types. Must respond in &lt;50ms. Powered by precomputed popularity scores, not live ES queries.</div>
+        </div>
+        <div class="feature-card f3">
+          <div class="feature-num">FEATURE 03</div>
+          <div class="feature-name">Near-Real-Time Index Updates</div>
+          <div class="feature-desc">Price and inventory changes must appear in search results within 30 seconds. CDC pipeline from product/price/inventory services via Kafka.</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size:12px;color:var(--text-dim);line-height:1.8;">Personalized ranking &nbsp;·&nbsp; Voice search &nbsp;·&nbsp; Image search &nbsp;·&nbsp; Spell correction &amp; synonyms &nbsp;·&nbsp; A/B testing framework for ranking</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;"><strong style="color:var(--text-dim);">Why mention it:</strong> Each is a full system. Naming them shows depth without letting them hijack the interview scope.</div>
+      </div>
+    </div>
+
+    <div class="section" id="nfr">
+      <div class="section-header"><span class="section-num">02</span><span class="section-title">Non-Functional Requirements</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Search is read-heavy (100:1). Every NFR should reflect that — cache aggressively, replicate search nodes, degrade gracefully (stale results &gt; no results).</div>
+      <div class="nfr-grid">
+        <div class="nfr-card"><div class="nfr-feature">Full-Text Search</div><div class="nfr-title">Low Latency: p99 &lt; 200ms</div><div class="nfr-req">Search latency directly impacts conversion. Cache popular queries. ES must return in &lt;100ms to leave budget for network + rendering.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Full-Text Search</div><div class="nfr-title">High Availability: 99.9%</div><div class="nfr-req">Search down = revenue down. 3-replica ES shards, CDN for popular result caching, circuit breaker to return cached results on ES failure.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Typeahead</div><div class="nfr-title">Ultra-Low Latency: p99 &lt; 50ms</div><div class="nfr-req">User is typing — every 100ms delay is felt. Redis sorted set prefix lookup, never query Elasticsearch on every keypress.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">Index Updates</div><div class="nfr-title">Freshness: &lt; 30s Lag</div><div class="nfr-req">Price changes during flash sales must appear quickly. CDC pipeline target: 5–10s end-to-end from DB commit to ES indexed.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">System-Wide</div><div class="nfr-title">Read-Heavy: 100:1 R/W</div><div class="nfr-req">500K QPS peak read, 5K QPS index updates. Optimize entirely for reads. Elasticsearch replicas absorb read load, not writes.</div></div>
+        <div class="nfr-card"><div class="nfr-feature">System-Wide</div><div class="nfr-title">Graceful Degradation</div><div class="nfr-req">ES cluster overloaded → serve cached results. Cache empty → return top-selling items. Never show empty search results page.</div></div>
+      </div>
+      <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">⬇ Below the Line (Out of Scope)</div>
+        <div style="font-size:12px;color:var(--text-dim);line-height:1.8;">ML re-ranking per user &nbsp;·&nbsp; Multi-language &amp; locale-specific search &nbsp;·&nbsp; Catalog deduplication &nbsp;·&nbsp; GDPR right-to-erasure from search index</div>
+      </div>
+    </div>
+
+    <div class="section" id="estimation">
+      <div class="section-header"><span class="section-num">03</span><span class="section-title">Back of Envelope Estimation</span></div>
+      <div class="callout"><strong>Interview tip:</strong> "500M products × 2KB = 1 TB raw; Elasticsearch adds ~3× overhead for inverted index → ~3 TB cluster storage. That's why I'm proposing a 20-node cluster." Numbers justify decisions.</div>
+      <div class="est-grid">
+        <div class="est-card">
+          <div class="est-label">Assumptions</div>
+          <div class="est-row"><span class="est-key">Products indexed</span><span class="est-val">500M</span></div>
+          <div class="est-row"><span class="est-key">DAU</span><span class="est-val">50M</span></div>
+          <div class="est-row"><span class="est-key">Searches/user/day</span><span class="est-val">5</span></div>
+          <div class="est-row"><span class="est-key">Typeahead:Search ratio</span><span class="est-val">10:1</span></div>
+          <div class="est-row"><span class="est-key">Index updates/day</span><span class="est-val">~5M (price+inv)</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Derived Numbers</div>
+          <div class="est-row"><span class="est-key">Search QPS (normal)</span><span class="est-val">~2,900 QPS</span></div>
+          <div class="est-row"><span class="est-key">Typeahead QPS</span><span class="est-val">~29,000 QPS</span></div>
+          <div class="est-row"><span class="est-key">Index update QPS</span><span class="est-val">~58 QPS</span></div>
+          <div class="est-row"><span class="est-key">Raw index size</span><span class="est-val">~1 TB</span></div>
+          <div class="est-row"><span class="est-key">ES cluster size (3× overhead)</span><span class="est-val">~3 TB</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Black Friday Peak (10×)</div>
+          <div class="est-row"><span class="est-key">Search QPS</span><span class="est-val">~29,000 QPS</span></div>
+          <div class="est-row"><span class="est-key">Typeahead QPS</span><span class="est-val">~290,000 QPS</span></div>
+          <div class="est-row"><span class="est-key">Index updates/s</span><span class="est-val">~580 QPS</span></div>
+        </div>
+        <div class="est-card">
+          <div class="est-label">Conclusions</div>
+          <div class="est-row"><span class="est-key">ES cluster nodes</span><span class="est-val">~20 nodes, 3 replicas</span></div>
+          <div class="est-row"><span class="est-key">Redis for typeahead</span><span class="est-val">Required (&lt;1GB RAM)</span></div>
+          <div class="est-row"><span class="est-key">Query result cache</span><span class="est-val">~5 min TTL</span></div>
+          <div class="est-row"><span class="est-key">CDN for top queries</span><span class="est-val">~10K popular queries</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="entities">
+      <div class="section-header"><span class="section-num">04</span><span class="section-title">Core Entities</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Distinguish the source-of-truth entity (Product in catalog DB) from the search-optimized read model (ProductIndex in ES). This CQRS distinction is a senior signal.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="card"><div class="card-title" style="color:var(--accent);">📦 Product</div><p>Source of truth in the product catalog DB. Has all fields. Changes here trigger index update events via CDC.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">product_id · title · description · brand · category_path · price · seller_id · updated_at</div></div>
+        <div class="card"><div class="card-title" style="color:var(--green);">🔍 ProductIndex</div><p>Denormalized Elasticsearch document optimized for search. Includes precomputed signals like in_stock and popularity_score. This is the read model.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">product_id · title · brand · category · price · avg_rating · in_stock · popularity_score · last_indexed_at</div></div>
+        <div class="card"><div class="card-title" style="color:var(--accent2);">🔎 SearchQuery</div><p>Incoming query with filters and pagination. The object the Search Service processes on every request.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">query_text · brand[] · price_min · price_max · rating_min · category · page · page_size</div></div>
+        <div class="card"><div class="card-title" style="color:var(--yellow);">📊 SearchResult</div><p>The returned result set. Includes facet counts for UI filters. Cached in Redis keyed by the query fingerprint.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">query_id · hits[{product_id,title,price,score}] · total · facets · latency_ms</div></div>
+        <div class="card"><div class="card-title" style="color:var(--red);">💡 TypeaheadSuggestion</div><p>Precomputed prefix → suggestion mapping stored in Redis sorted sets. Score = popularity. Refreshed nightly from search logs.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">prefix · suggestions[{text, product_count, score}]</div></div>
+        <div class="card"><div class="card-title" style="color:var(--text-dim);">📝 IndexUpdateEvent</div><p>Kafka event triggering a re-index. Carries only the changed fields — no need to re-index the full document on a price change.</p><div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted);">event_type · product_id · changed_fields{} · occurred_at</div></div>
+      </div>
+      <div class="callout" style="margin-top:16px;"><strong>Key relationship:</strong> Product is the write model; ProductIndex is the read model. They're kept in sync via IndexUpdateEvent — like a CQRS pattern where ES is the read store and Postgres is the write store.</div>
+    </div>
+
+    <div class="section" id="api">
+      <div class="section-header"><span class="section-num">05</span><span class="section-title">API Design</span></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 1 — Full-Text Search with Facets</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-get">GET</span><span class="api-path">/v1/search?q={query}&amp;brand={b}&amp;price_min={n}&amp;price_max={n}&amp;rating_min={r}&amp;page={p}&amp;size={n}</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span>
+{
+  <span class="key">"results"</span>: [{ <span class="key">"product_id"</span>: <span class="str">"P-123"</span>, <span class="key">"title"</span>: <span class="str">"iPhone Case"</span>, <span class="key">"price"</span>: <span class="num">19.99</span>, <span class="key">"in_stock"</span>: <span class="num">true</span>, <span class="key">"score"</span>: <span class="num">0.92</span> }],
+  <span class="key">"total"</span>: <span class="num">1243</span>,
+  <span class="key">"facets"</span>: { <span class="key">"brands"</span>: [<span class="str">"Apple"</span>, <span class="str">"OtterBox"</span>], <span class="key">"price_ranges"</span>: [<span class="str">"0-25"</span>, <span class="str">"25-50"</span>] },
+  <span class="key">"query_id"</span>: <span class="str">"qry-abc123"</span>
+}</pre></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin:20px 0 16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 2 — Typeahead</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-get">GET</span><span class="api-path">/v1/search/suggest?prefix={text}&amp;limit=10</span><span class="api-desc">Sub-50ms prefix suggestions</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span>
+{ <span class="key">"suggestions"</span>: [{ <span class="key">"text"</span>: <span class="str">"iphone case"</span>, <span class="key">"product_count"</span>: <span class="num">1243</span> }], <span class="key">"latency_ms"</span>: <span class="num">4</span> }</pre></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin:20px 0 16px;text-transform:uppercase;letter-spacing:0.08em;">Feature 3 — Index Management (Internal)</div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-post">POST</span><span class="api-path">/v1/index/products/{product_id}</span><span class="api-desc">Force re-index (ops use)</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span> { <span class="key">"status"</span>: <span class="str">"QUEUED"</span>, <span class="key">"estimated_lag_ms"</span>: <span class="num">3000</span> }</pre></div>
+      </div>
+      <div class="api-block">
+        <div class="api-header"><span class="method method-get">GET</span><span class="api-path">/v1/index/products/{product_id}/status</span><span class="api-desc">Check index freshness</span></div>
+        <div class="api-body"><pre><span class="key">Response:</span> { <span class="key">"last_indexed_at"</span>: <span class="str">"2025-11-29T14:31:55Z"</span>, <span class="key">"lag_seconds"</span>: <span class="num">5</span> }</pre></div>
+      </div>
+      <div class="callout warn"><strong>Search is read-only — no idempotency needed for query endpoints.</strong> But index mutations must be idempotent: re-indexing the same product twice must converge to the same ES document. Use product's updated_at as the version gate.</div>
+    </div>
+
+    <div class="section" id="hld">
+      <div class="section-header"><span class="section-num">06</span><span class="section-title">High Level Design</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Build the query path (F1) first — it's the hot path. Then layer in typeahead (F2) as a separate service. Then the indexing pipeline (F3). Show how they're decoupled.</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Feature 1 — Full-Text Search Query Path</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">Client</div><div class="arch-box box-blue">Browser / App</div><div class="arch-arrow">→</div><div class="arch-box box-gray">CDN (popular query cache)</div><div class="arch-arrow">→</div><div class="arch-box box-gray">API Gateway</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Query Path</div><div class="arch-box box-blue">Search Service</div><div class="arch-arrow">→ check →</div><div class="arch-box box-red">Redis Query Cache</div><div class="arch-arrow">hit: return · miss:</div><div class="arch-box box-green">Elasticsearch Cluster</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">ES Response</div><div class="arch-box box-green">ES: BM25 hits + facet aggregations</div><div class="arch-arrow">→</div><div class="arch-box box-blue">Search Service</div><div class="arch-arrow">→ cache + return</div></div>
+      </div>
+      <div class="card" style="margin-top:12px;"><div class="card-title">Flow: Search Query</div><p>Request hits CDN first (popular queries cached 60s). Cache miss → API GW → Search Service checks Redis query cache (5 min TTL, key = MD5(query+filters+page)). Redis miss → Elasticsearch query: BM25 text match + filter clauses + facet aggregations. Result cached in Redis and returned. Total: &lt;200ms p99.</p></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Feature 2 — Typeahead (adds to F1, separate service)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">New: Typeahead Path</div><div class="arch-box box-blue">User typing</div><div class="arch-arrow">→</div><div class="arch-box box-green">Typeahead Service</div><div class="arch-arrow">→</div><div class="arch-box box-red">Redis ZRANGEBYLEX (prefix lookup)</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">New: Nightly Refresh</div><div class="arch-box box-yellow">Popularity Job (cron)</div><div class="arch-arrow">reads search logs →</div><div class="arch-box box-red">recomputes scores → Redis sorted sets</div></div>
+      </div>
+      <div class="card" style="margin-top:12px;"><div class="card-title">Flow: Typeahead</div><p>User types "ipho" → Typeahead Service issues ZRANGEBYLEX suggest:{i}:{p}:{h}:{o} → returns top-10 suggestion strings in O(log N). Entire suggestion dataset fits in &lt;1GB Redis RAM. Nightly job recomputes popularity scores from aggregated search + click logs. Response: &lt;5ms p99.</p></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Feature 3 — Near-Real-Time Index Updates (adds to F1)</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">New: Event Sources</div><div class="arch-box box-gray">Catalog DB (CDC)</div><div class="arch-arrow">·</div><div class="arch-box box-gray">Inventory Svc</div><div class="arch-arrow">·</div><div class="arch-box box-gray">Price Svc</div><div class="arch-arrow">→ all →</div><div class="arch-box box-yellow">Kafka: product.events</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">New: Index Consumer</div><div class="arch-box box-purple">Index Update Consumer</div><div class="arch-arrow">← Kafka ← event → partial update →</div><div class="arch-box box-green">Elasticsearch (affected doc only)</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">New: Lag Monitor</div><div class="arch-box box-yellow">Index Lag Monitor</div><div class="arch-arrow">tracks created_at vs last_indexed_at, alerts if &gt;30s</div></div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 12px;">Merged Full Architecture</div>
+      <div class="arch-diagram">
+        <div class="arch-layer"><div class="arch-layer-label">Clients</div><div class="arch-box box-blue">Browser / App</div><div class="arch-arrow">→</div><div class="arch-box box-gray">CDN → API Gateway</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Query Services</div><div class="arch-box box-blue">Search Service</div><div class="arch-arrow">·</div><div class="arch-box box-green">Typeahead Service</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Storage</div><div class="arch-box box-green">Elasticsearch Cluster</div><div class="arch-arrow">·</div><div class="arch-box box-red">Redis (Query Cache + Typeahead)</div></div>
+        <div class="arch-layer"><div class="arch-layer-label">Index Pipeline</div><div class="arch-box box-yellow">Kafka</div><div class="arch-arrow">←</div><div class="arch-box box-gray">Catalog CDC + Inventory + Price</div><div class="arch-arrow">→</div><div class="arch-box box-purple">Index Consumer</div><div class="arch-arrow">→</div><div class="arch-box box-green">ES</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="datamodel">
+      <div class="section-header"><span class="section-num">07</span><span class="section-title">Data Model</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Three distinct storage layers with different access patterns. Don't conflate them — each has a specific job.</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Elasticsearch — product_index (search read model)</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>product_id</td><td class="type-col">keyword</td><td>Shard key — routes all operations for a product to same shard</td></tr>
+          <tr><td>title</td><td class="type-col">text (analyzed)</td><td>Full-text search field, BM25 scored</td></tr>
+          <tr><td>brand</td><td class="type-col">keyword</td><td>Exact-match filter + facet aggregation</td></tr>
+          <tr><td>category_path</td><td class="type-col">keyword[]</td><td>Hierarchical — ["Electronics", "Phones", "Cases"]</td></tr>
+          <tr><td>price</td><td class="type-col">float</td><td>Range filter — updated via partial index update on price change</td></tr>
+          <tr><td>in_stock</td><td class="type-col">boolean</td><td>Filter OOS products — updated every &lt;30s from inventory events</td></tr>
+          <tr><td>popularity_score</td><td class="type-col">float</td><td>Boost factor for ranking — recomputed nightly from CTR + purchase rate</td></tr>
+          <tr><td>last_indexed_at</td><td class="type-col">date</td><td>Lag monitoring — compare vs event occurred_at</td></tr>
+        </tbody>
+      </table></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--red);text-transform:uppercase;letter-spacing:0.08em;margin:20px 0 10px;">Redis — Typeahead Sorted Sets</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Key Pattern</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>suggest:{prefix}</td><td class="type-col">Sorted Set</td><td>Members = suggestion strings, Score = 0 (lex order), ZRANGEBYLEX for prefix match</td></tr>
+          <tr><td>suggest_score:{text}</td><td class="type-col">String</td><td>Popularity score for client-side re-sort. TTL: 24h</td></tr>
+        </tbody>
+      </table></div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;margin:20px 0 10px;">Redis — Query Result Cache</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Key Pattern</th><th>Value</th><th>TTL</th></tr></thead>
+        <tbody>
+          <tr><td>qcache:{MD5(query+filters+page)}</td><td class="type-col">Serialized SearchResult JSON</td><td>5 minutes — balances freshness vs ES load</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout warn" style="margin-top:16px;"><strong>5-minute TTL is a conscious tradeoff:</strong> A price change during a flash sale may take up to 5 min to appear in cached search results. For price/inventory fields, invalidate the cache proactively on IndexUpdateEvent — don't wait for TTL expiry.</div>
+    </div>
+
+    <div class="section" id="tradeoffs">
+      <div class="section-header"><span class="section-num">08</span><span class="section-title">Tradeoffs &amp; Deep Dives</span></div>
+      <div class="callout"><strong>Interview tip:</strong> Use the BAD → GOOD → GREAT pattern for each NFR. The GREAT answer for search is almost always: separate the query path from the indexing path, and cache aggressively at every layer.</div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin:24px 0 8px;">NFR: RELEVANCE RANKING</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">How do you make search results feel relevant, not just keyword-matched?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — Pure TF-IDF</div>
+        <p style="font-size:13px;color:var(--text-dim);">Elasticsearch default BM25. "iPhone case" returns any document containing those words, ranked by keyword frequency. Obscure products with exact keyword match outrank popular OtterBox cases. No business context. Kills conversion.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — Static boosts</div>
+        <p style="font-size:13px;color:var(--text-dim);">function_score query with static multipliers: avg_rating × 1.2, in_stock × 1.5, brand_tier × 1.1. Better but static — can't learn from what users actually click and buy. Seasonal trends (Black Friday) not captured.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — Two-phase ranking with behavioral signals</div>
+        <p style="font-size:13px;color:var(--text-dim);">Phase 1: Elasticsearch BM25 retrieves top-100 candidates (&lt;50ms). Phase 2: Lightweight gradient boosting model re-ranks top-100 using precomputed signals: click-through rate (CTR), add-to-cart rate, purchase rate, avg_rating, review count. Signals computed nightly from clickstream data and stored as popularity_score in the ES document. Online re-ranking: &lt;15ms on 100 candidates, not 500M. Total latency stays under 200ms. Model retrained weekly on fresh behavioral data.</p>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin:32px 0 8px;">NFR: TYPEAHEAD AT 290K QPS</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">How do you serve prefix suggestions in &lt;50ms at 290K QPS peak?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — Query Elasticsearch on every keypress</div>
+        <p style="font-size:13px;color:var(--text-dim);">Wildcard prefix query on ES. "iph*" scans posting lists. 200ms+ latency. At 290K QPS this obliterates the ES cluster that's already serving search results. ES not designed for this access pattern.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — Database prefix query</div>
+        <p style="font-size:13px;color:var(--text-dim);">MySQL/Postgres full-text index on suggestion strings. SELECT text WHERE text LIKE 'iph%'. 10–20ms with B-tree index. But at 290K QPS this is a DB bottleneck. DB contention with write traffic from index updates.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — Redis Sorted Set with ZRANGEBYLEX</div>
+        <p style="font-size:13px;color:var(--text-dim);">Store all suggestion strings in Redis Sorted Sets keyed by prefix groups. Score = 0 (alphabetical). ZRANGEBYLEX suggest:{prefix} [prefix] [prefix\xff] returns all suggestions starting with prefix in O(log N + M). Entire dataset: &lt;1GB RAM. Sub-5ms at 290K QPS. Nightly job recomputes from search logs and atomically replaces sorted set. No read/write contention — reads always see a complete, consistent set.</p>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin:32px 0 8px;">NFR: INDEX FRESHNESS &lt; 30s</div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px;">How do you reflect price changes in search results within 30 seconds during a flash sale?</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--red);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px;">❌ BAD — Nightly full re-index</div>
+        <p style="font-size:13px;color:var(--text-dim);">Batch job re-indexes all 500M products every night. Search results show yesterday's prices. During a Black Friday flash sale with 40% price drops, customers see wrong prices. Purchases at stale prices cause order cancellations and legal issues.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--yellow);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--yellow);margin-bottom:8px;">⚠ GOOD — Polling the catalog DB every 60s</div>
+        <p style="font-size:13px;color:var(--text-dim);">Polling job SELECT * WHERE updated_at &gt; last_poll. 60s lag, 580 QPS index updates, plus constant scan load on the production DB. At 500M products with frequent price changes, full scans are prohibitive. Misses high-frequency updates within the polling window.</p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--green);">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);margin-bottom:8px;">✅ GREAT — CDC via Debezium → Kafka → partial ES update</div>
+        <p style="font-size:13px;color:var(--text-dim);">Debezium reads Postgres WAL → publishes row changes to Kafka topic product.changes. Index Consumer reads events, issues ES _update with only the changed fields (price, in_stock) — no full document re-index. Partial update: &lt;5ms ES write. End-to-end lag: CDC delay (~1s) + Kafka consumer lag (~2s) + ES index refresh interval (1s) = 4–5s total. ES index refresh tunable per index: set to 1s for price/inventory fields, 30s for description (less critical). Also proactively evict Redis query cache entries for affected product categories.</p>
+      </div>
+
+      <div class="callout good" style="margin-top:24px;">
+        <strong>Walmart.com at Scale:</strong> Walmart.com handles 250M+ product searches per day across 500M+ SKUs. Their search team (OneSearch platform) runs Elasticsearch with proprietary relevance scoring that combines BM25 with gradient-boosted behavioral signals retrained weekly. During Black Friday, they pre-warm Redis caches for the top-10,000 search queries 2 hours before midnight and set ES index refresh interval to 500ms for price/inventory fields to handle flash sale pricing in near-real-time.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function scrollTo(id) { document.getElementById(id).scrollIntoView({ behavior:'smooth', block:'start' }); }
+  const sections = ['features','nfr','estimation','entities','api','hld','datamodel','tradeoffs'];
+  const navItems = document.querySelectorAll('.nav-item');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(id => { const el = document.getElementById(id); if (el && el.getBoundingClientRect().top < 120) current = id; });
+    navItems.forEach((item, i) => { item.classList.toggle('active', sections[i] === current); });
+  }, { passive: true });
+</script>
+</body>
+</html>
